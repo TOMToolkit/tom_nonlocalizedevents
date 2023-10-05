@@ -7,6 +7,7 @@ from tom_nonlocalizedevents.models import (NonLocalizedEvent, EventCandidate, Sk
 from django.db import transaction
 from django.conf import settings
 from django.utils import timezone
+from django.db.utils import IntegrityError
 from healpix_alchemy.constants import HPX, LEVEL
 from healpix_alchemy.types import Tile, Point
 import sqlalchemy as sa
@@ -126,8 +127,9 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
     """ Create localization from skymap bytes and related fields """
     logger.info(f"Creating localization for {nonlocalizedevent.event_id} with skymap {skymap_url}")
     skymap_hash = hashlib.md5(skymap_bytes).hexdigest()
+    skymap_uuid = uuid.UUID(skymap_hash)
     try:
-        localization = EventLocalization.objects.get(nonlocalizedevent=nonlocalizedevent, skymap_hash=skymap_hash)
+        localization = EventLocalization.objects.get(nonlocalizedevent=nonlocalizedevent, skymap_hash=skymap_uuid)
     except EventLocalization.DoesNotExist:
         skymap = Table.read(BytesIO(skymap_bytes))
         is_burst = pipeline in ['CWB', 'oLIB', 'mLy']
@@ -142,7 +144,6 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
             row_dist_mean = None
             row_dist_std = None
         date = parse(skymap.meta['DATE']).replace(tzinfo=timezone.utc)
-        skymap_uuid = uuid.UUID(skymap_hash)
         skymap_version = get_skymap_version(nonlocalizedevent, skymap_hash=skymap_uuid, is_combined=is_combined)
         if not skymap_url:
             base_url = f"https://gracedb.ligo.org/api/superevents/{nonlocalizedevent.event_id}/files/"
@@ -158,28 +159,38 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
         area_50, area_90 = get_confidence_regions(skymap)
 
         with transaction.atomic():
-            localization = EventLocalization.objects.create(
-                nonlocalizedevent=nonlocalizedevent,
-                distance_mean=distance_mean,
-                distance_std=distance_std,
-                skymap_version=skymap_version,
-                skymap_hash=skymap_uuid,
-                skymap_url=skymap_url,
-                area_50=area_50,
-                area_90=area_90,
-                date=date
-            )
-            for i, row in enumerate(skymap):
-                # This is necessary to make sure we don't get an underflow error in postgres
-                # when operating with the probdensity float field
-                probdensity = row['PROBDENSITY'] if row['PROBDENSITY'] > sys.float_info.min else 0
-                SkymapTile.objects.create(
-                    localization=localization,
-                    tile=uniq_to_bigintrange(row['UNIQ']),
-                    probdensity=probdensity,
-                    distance_mean=row_dist_mean[i] if row_dist_mean is not None else 0,
-                    distance_std=row_dist_std[i] if row_dist_std is not None else 0
+            try:
+                localization, is_new = EventLocalization.objects.get_or_create(
+                    nonlocalizedevent=nonlocalizedevent,
+                    skymap_hash=skymap_uuid,
+                    defaults={
+                        'distance_mean': distance_mean,
+                        'distance_std': distance_std,
+                        'skymap_version': skymap_version,
+                        'skymap_url': skymap_url,
+                        'area_50': area_50,
+                        'area_90': area_90,
+                        'date': date
+                    }
                 )
+                if not is_new:
+                    # This is added to protect against race conditions where the localization has already been added
+                    return localization
+                for i, row in enumerate(skymap):
+                    # This is necessary to make sure we don't get an underflow error in postgres
+                    # when operating with the probdensity float field
+                    probdensity = row['PROBDENSITY'] if row['PROBDENSITY'] > sys.float_info.min else 0
+                    SkymapTile.objects.create(
+                        localization=localization,
+                        tile=uniq_to_bigintrange(row['UNIQ']),
+                        probdensity=probdensity,
+                        distance_mean=row_dist_mean[i] if row_dist_mean is not None else 0,
+                        distance_std=row_dist_std[i] if row_dist_std is not None else 0
+                    )
+            except IntegrityError as e:
+                if 'unique constraint' in e.message:
+                    return EventLocalization.objects.get(nonlocalizedevent=nonlocalizedevent, skymap_hash=skymap_hash)
+                raise e
     return localization
 
 
