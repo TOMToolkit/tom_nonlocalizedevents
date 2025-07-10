@@ -1,0 +1,20 @@
+{% extends 'tom_common/base.html' %}
+{% load static %}
+
+{% block title %}Superevent {{ superevent.event_id }}{% endblock %}
+
+{% block content %}
+  <div class="card-body">
+      <h3 class="card-title">
+          {{ superevent.event_id }}
+      </h3>
+      <p class="card-text">
+          {{ superevent.description }}
+      </p>
+  </div>
+  {% include 'tom_nonlocalizedevents/partials/_superevent_sequences.html' %}
+{% endblock %}
+
+{% block css %}
+    <link rel="stylesheet" href="{% static 'tom_nonlocalizedevents/css/superevent.css' %}">
+{% endblock %}

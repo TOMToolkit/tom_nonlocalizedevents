@@ -10,14 +10,16 @@ from django.shortcuts import redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, TemplateView
 from django.views.generic.base import View
-from django.urls import reverse
-from django.conf import settings
+from django.views.generic.edit import UpdateView
+from django.urls import reverse, reverse_lazy
+
 
 from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
+from tom_nonlocalizedevents.forms import NonLocalizedEventsProfileForm
 from tom_nonlocalizedevents.ingestion import ingest_sequence_from_hermes_message
-from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent
+from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent, NonLocalizedEventsProfile
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 
@@ -143,33 +145,75 @@ class EventLocalizationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class SupereventPkView(LoginRequiredMixin, TemplateView):
-    template_name = 'tom_nonlocalizedevents/superevent_vue_app.html'
+class SupereventMixin(object):
+    template_name = 'tom_nonlocalizedevents/superevent.html'
 
     def get_context_data(self, **kwargs: dict) -> dict:
         context = super().get_context_data(**kwargs)
         try:
-            superevent = NonLocalizedEvent.objects.get(pk=kwargs['pk'])
-            data = NonLocalizedEventSerializer(instance=superevent).data
-            context['superevent_data'] = json.dumps(data)
-            context['tom_api_url'] = settings.TOM_API_URL
-            context['hermes_api_url'] = settings.HERMES_API_URL
+            if 'pk' in kwargs:
+                superevent = NonLocalizedEvent.objects.get(pk=kwargs['pk'])
+            else:
+                superevent = NonLocalizedEvent.objects.get(event_id=kwargs['event_id'])
+            context['superevent'] = superevent
+            
+            # Fetch data from Hermes API
+            hermes_url = f"{settings.HERMES_API_URL}/api/v0/nonlocalizedevents/{superevent.event_id}/"
+            try:
+                response = requests.get(hermes_url)
+                response.raise_for_status()  # Raise an exception for bad status codes
+                hermes_data = response.json()
+                context['references'] = hermes_data.get('references', [])
+                sequences = hermes_data.get('sequences', [])
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching data from Hermes API: {e}")
+                context['references'] = []
+                sequences = []
+
+            # Prepare expanded sequences
+            expanded_sequences = []
+            for seq in sequences:
+                expanded_sequences.append(seq)
+                if seq.get('external_coincidences'):
+                    for ext_coinc in seq['external_coincidences']:
+                        if ext_coinc.get('retractions'):
+                            continue
+                        combined_seq = seq.copy()
+                        combined_seq['localization_name'] = ext_coinc['localization_name']
+                        combined_seq['is_combined'] = True
+                        expanded_sequences.append(combined_seq)
+            context['expanded_sequences'] = expanded_sequences
+            
             return context
         except NonLocalizedEvent.DoesNotExist:
             raise Http404
 
 
-class SupereventIdView(LoginRequiredMixin, TemplateView):
-    template_name = 'tom_nonlocalizedevents/superevent_vue_app.html'
+class SupereventPkView(LoginRequiredMixin, SupereventMixin, TemplateView):
+    pass
 
-    def get_context_data(self, **kwargs: dict) -> dict:
-        context = super().get_context_data(**kwargs)
-        try:
-            superevent = NonLocalizedEvent.objects.get(event_id=kwargs['event_id'])
-            data = NonLocalizedEventSerializer(instance=superevent).data
-            context['superevent_data'] = json.dumps(data)
-            context['tom_api_url'] = settings.TOM_API_URL
-            context['hermes_api_url'] = settings.HERMES_API_URL
-            return context
-        except NonLocalizedEvent.DoesNotExist:
-            raise Http404
+
+class SupereventIdView(LoginRequiredMixin, SupereventMixin, TemplateView):
+    pass
+
+
+class ProfileUpdateView(UpdateView):
+    """
+    View that handles updating of a user's ``NonLocalizedEventsProfile``.
+
+    The tom_nonlocalizedevents App has an ``NonLocalizedEventsProfile`` model (see ``models.py``).
+    This view updates the properties of that model.
+
+    The ``NonLocalizedEventsProfile`` properties are displayed by the ``nonlocalizedevents_user_profile.html`` template.
+    This typically happens on the on the User Profile page via the ``show_app_profiles``
+    inclusion tag (see ``tom_base/tom_common/templates/tom_common/user_profile.html`` and
+    ``tom_base/tom_common/templatetags/user_extras.py::show_app_profiles``).
+    """
+    model = NonLocalizedEventsProfile
+    template_name = 'tom_nonlocalizedevents/nonlocalizedevents_update_user_profile.html'
+
+    # we need a custom form class to handle the encrypted field
+    form_class = NonLocalizedEventsProfileForm
+
+    def get_success_url(self):
+        return reverse_lazy('user-profile')

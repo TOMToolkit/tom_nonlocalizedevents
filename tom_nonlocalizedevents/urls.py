@@ -1,7 +1,7 @@
 from django.urls import path
 
 from tom_common.api_router import SharedAPIRootRouter  # a singleton DRF Router
-from tom_nonlocalizedevents.views import SupereventPkView, SupereventIdView
+from tom_nonlocalizedevents.views import ProfileUpdateView, SupereventPkView, SupereventIdView
 
 from . import views
 
@@ -21,5 +21,8 @@ urlpatterns = [
     path('', views.NonLocalizedEventListView.as_view(), name='index'),
     path('<int:pk>/', SupereventPkView.as_view(), name='detail'),
     path('<str:event_id>/', SupereventIdView.as_view(), name='event-detail'),
-    path('alert/createfrom', views.CreateEventFromHermesAlertView.as_view(), name='create-from-alert')
+    path('alert/createfrom', views.CreateEventFromHermesAlertView.as_view(), name='create-from-alert'),
+
+    # urlpatterns for User Profile
+    path('users/<int:pk>/update/', ProfileUpdateView.as_view(), name='nonlocalizedevents-profile-update'),
 ]
