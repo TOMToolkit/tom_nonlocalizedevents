@@ -8,7 +8,7 @@ from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, TemplateView
+from django.views.generic import DetailView, ListView
 from django.views.generic.base import View
 from django.views.generic.edit import UpdateView
 from django.urls import reverse, reverse_lazy
@@ -145,56 +145,73 @@ class EventLocalizationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class SupereventMixin(object):
-    template_name = 'tom_nonlocalizedevents/superevent.html'
+class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
+    """
+    Displays a single NonLocalizedEvent. This view follows the standard Django
+    DetailView pattern and is responsible for fetching the object and any
+    related data for the template.
+    """
+    model = NonLocalizedEvent
+    template_name = 'tom_nonlocalizedevents/nonlocalizedevent_detail.html'
+    context_object_name = 'nonlocalizedevent'  # Provides a clear name for the object in the template
 
-    def get_context_data(self, **kwargs: dict) -> dict:
+    def get_object(self, queryset=None):
+        """
+        This override allows the view to retrieve the NonLocalizedEvent object
+        using either the primary key (`pk`) or the `event_id` (as a slug),
+        making the view more flexible and consolidating the logic from the
+        previous Pk- and Id-based views.
+        """
+        if 'pk' in self.kwargs:
+            return self.get_queryset().get(pk=self.kwargs['pk'])
+        elif 'event_id' in self.kwargs:
+            return self.get_queryset().get(event_id=self.kwargs['event_id'])
+        raise Http404("No pk or event_id found in URL")
+
+    def get_context_data(self, **kwargs):
+        """
+        This method is extended to add supplementary data to the template context.
+        Specifically, it fetches additional event details (references, sequences)
+        from the external Hermes API, decoupling this logic from the primary
+        object retrieval.
+        """
         context = super().get_context_data(**kwargs)
+        nonlocalizedevent = self.object  # The object is already fetched by DetailView
+
+        # Fetch data from Hermes API
+        hermes_url = f"{settings.HERMES_API_URL}/api/v0/nonlocalizedevents/{nonlocalizedevent.event_id}/"
         try:
-            if 'pk' in kwargs:
-                superevent = NonLocalizedEvent.objects.get(pk=kwargs['pk'])
-            else:
-                superevent = NonLocalizedEvent.objects.get(event_id=kwargs['event_id'])
-            context['superevent'] = superevent
-            
-            # Fetch data from Hermes API
-            hermes_url = f"{settings.HERMES_API_URL}/api/v0/nonlocalizedevents/{superevent.event_id}/"
-            try:
-                response = requests.get(hermes_url)
-                response.raise_for_status()  # Raise an exception for bad status codes
-                hermes_data = response.json()
-                context['references'] = hermes_data.get('references', [])
-                sequences = hermes_data.get('sequences', [])
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Error fetching data from Hermes API: {e}")
-                context['references'] = []
-                sequences = []
+            response = requests.get(hermes_url)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            hermes_data = response.json()
+            context['references'] = hermes_data.get('references', [])
+            context['sequences'] = hermes_data.get('sequences', [])
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching data from Hermes API: {e}")
+            messages.error(self.request, f"Could not fetch data from Hermes for {nonlocalizedevent.event_id}.")
+            context['references'] = []
+            context['sequences'] = []
 
-            # Prepare expanded sequences
-            expanded_sequences = []
-            for seq in sequences:
-                expanded_sequences.append(seq)
-                if seq.get('external_coincidences'):
-                    for ext_coinc in seq['external_coincidences']:
-                        if ext_coinc.get('retractions'):
-                            continue
-                        combined_seq = seq.copy()
-                        combined_seq['localization_name'] = ext_coinc['localization_name']
-                        combined_seq['is_combined'] = True
-                        expanded_sequences.append(combined_seq)
-            context['expanded_sequences'] = expanded_sequences
-            
-            return context
-        except NonLocalizedEvent.DoesNotExist:
-            raise Http404
+        # The logic for 'expanded_sequences' can be moved to the template or a template tag
+        # for better separation of concerns, but is kept here for now to match existing functionality.
+        # TODO: Consider refactoring this logic into a template tag.
+        context['expanded_sequences'] = self._get_expanded_sequences(context.get('sequences', []))
 
+        return context
 
-class SupereventPkView(LoginRequiredMixin, SupereventMixin, TemplateView):
-    pass
-
-
-class SupereventIdView(LoginRequiredMixin, SupereventMixin, TemplateView):
-    pass
+    def _get_expanded_sequences(self, sequences):
+        expanded_sequences = []
+        for seq in sequences:
+            expanded_sequences.append(seq)
+            if seq.get('external_coincidences'):
+                for ext_coinc in seq['external_coincidences']:
+                    if ext_coinc.get('retractions'):
+                        continue
+                    combined_seq = seq.copy()
+                    combined_seq['localization_name'] = ext_coinc['localization_name']
+                    combined_seq['is_combined'] = True
+                    expanded_sequences.append(combined_seq)
+        return expanded_sequences
 
 
 class ProfileUpdateView(UpdateView):

@@ -23,8 +23,38 @@ def get_sequence_number(superevent_id: str) -> int:
 
 
 def handle_igwn_message(message: JSONBlob, metadata: Metadata):
-    alert = message.content[0]
-    logger.info(f"Handling igwn alert for event {alert.get('superevent_id')}")
+    """
+
+    Here what the logged message looks like:
+
+    {'alert_type': 'RETRACTION',
+     'time_created': '2025-07-04T03:03:41Z',
+      'superevent_id': 'MS250704c',
+      'event': None,
+      'external_coinc': None,
+      'urls': {
+        'gracedb': 'https://gracedb.ligo.org/supe{'alert_type': 'RETRACTION',
+        'time_created': '2025-07-04T03:03:41Z',
+        'superevent_id': 'MS250704c',
+        'event': None,
+        'external_coinc': None,
+        'urls': {
+          'gracedb': 'https://gracedb.ligo.org/superevents/MS250704c/view/'}
+        }revents/MS250704c/view/'}
+    }
+
+    """
+    logger.debug(f'handle_igwn_message: message: {message}')
+    logger.debug(f'handle_igwn_message: message.content: {message.content}')
+
+    try:
+        alert = message.content[0]
+    except KeyError as err:
+        logger.error(f"messsage.content[0] isn't working here type(message): {type(message)}")
+        logger.error(f"messsage.content[0] isn't working here: {err}")
+
+    alert = message
+    # logger.info(f"Handling igwn alert for event {alert.get('superevent_id')}")
 
     # Only store test alerts if we are configured to do so
     # TODO: consider moving SAVE_TEST_ALERTS from top level of settings
