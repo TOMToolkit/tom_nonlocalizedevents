@@ -1,20 +1,85 @@
 {% extends 'tom_common/base.html' %}
 {% load static %}
+{% load tom_common_extras %}
 
-{% block title %}Superevent {{ superevent.event_id }}{% endblock %}
+{% block title %}Event {{ nonlocalizedevent.event_id }}{% endblock %}
 
 {% block content %}
-  <div class="card-body">
-      <h3 class="card-title">
-          {{ superevent.event_id }}
-      </h3>
-      <p class="card-text">
-          {{ superevent.description }}
-      </p>
+<div class="row">
+  <div class="col-md-12">
+    <h2>
+      {{ nonlocalizedevent.event_id }}
+      <span class="badge
+        {% if nonlocalizedevent.state == 'ACTIVE' %}badge-success{% endif %}
+        {% if nonlocalizedevent.state == 'INACTIVE' %}badge-secondary{% endif %}
+        {% if nonlocalizedevent.state == 'RETRACTED' %}badge-danger{% endif %}
+      ">{{ nonlocalizedevent.get_state_display }}</span>
+    </h2>
   </div>
-  {% include 'tom_nonlocalizedevents/partials/_superevent_sequences.html' %}
+</div>
+
+<div class="row mt-3">
+  <div class="col-md-4">
+    {# This card displays the core attributes of the NonLocalizedEvent model instance. #}
+    <div class="card mb-3">
+      <div class="card-header">
+        Event Details
+      </div>
+      <div class="card-body">
+        <dl class="row">
+          <dt class="col-sm-5">Event Type</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.get_event_type_display }}</dd>
+          <dt class="col-sm-5">Created</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.created|date:"Y-m-d H:i:s" }} UTC</dd>
+          <dt class="col-sm-5">Last Modified</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.modified|date:"Y-m-d H:i:s" }} UTC</dd>
+        </dl>
+      </div>
+    </div>
+
+    {# This card provides convenient links to external services where this event can be viewed. #}
+    {# It demonstrates using model properties to generate dynamic URLs. #}
+    <div class="card mb-3">
+      <div class="card-header">
+        External Links
+      </div>
+      <ul class="list-group list-group-flush">
+        {# These links are specific to Gravitational Wave events, so we conditionally display them. #}
+        {% if nonlocalizedevent.event_type == 'GW' %}
+          <li class="list-group-item"><a href="{{ nonlocalizedevent.gracedb_url }}" target="_blank">GraceDB</a></li>
+          <li class="list-group-item"><a href="{{ nonlocalizedevent.treasuremap_url }}" target="_blank">Treasure Map</a></li>
+        {% endif %}
+        <li class="list-group-item"><a href="{{ nonlocalizedevent.hermes_url }}" target="_blank">Hermes</a></li>
+      </ul>
+    </div>
+
+    {# This card displays the references fetched from the Hermes API. #}
+    {# This demonstrates rendering data that was added to the context in the view. #}
+    {% if references %}
+    <div class="card mb-3">
+      <div class="card-header">
+        References
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for ref in references %}
+          <li class="list-group-item">
+            <a href="{{ ref.url }}" target="_blank">{{ ref.source }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <div class="col-md-8">
+    {# This partial is responsible for rendering the event sequences. #}
+    {# Keeping it as an include allows for easier management and potential dynamic loading with htmx. #}
+    {% include 'tom_nonlocalizedevents/partials/_superevent_sequences.html' %}
+  </div>
+</div>
 {% endblock %}
 
 {% block css %}
-    <link rel="stylesheet" href="{% static 'tom_nonlocalizedevents/css/superevent.css' %}">
+  <link rel="stylesheet" href="{% static 'tom_nonlocalizedevents/css/superevent.css' %}">
 {% endblock %}
