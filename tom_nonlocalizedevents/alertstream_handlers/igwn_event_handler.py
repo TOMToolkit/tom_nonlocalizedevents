@@ -67,6 +67,7 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
     if alert.get('superevent_id', '').startswith('M') and not save_test_alerts:
         return None, None
 
+    # Handle RETRACTION and exit
     if alert.get('alert_type', '') == 'RETRACTION':
         nonlocalizedevent, nle_created = NonLocalizedEvent.objects.update_or_create(
             event_id=alert['superevent_id'],
@@ -75,6 +76,7 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
         )
         return nonlocalizedevent, None
 
+    # Get (or create) the NonLocalizedEvent for further processing
     nonlocalizedevent, nle_created = NonLocalizedEvent.objects.get_or_create(
         event_id=alert['superevent_id'],
         event_type=NonLocalizedEvent.NonLocalizedEventType.GRAVITATIONAL_WAVE,
