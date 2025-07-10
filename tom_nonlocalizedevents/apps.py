@@ -29,3 +29,21 @@ class TomNonlocalizedeventsConfig(AppConfig):
             path('nonlocalizedevents/', include(f'{self.name}.urls', namespace='nonlocalizedevents'))
         ]
         return urlpatterns
+
+    def profile_details(self):
+        """
+        Integration point for adding items to the user profile page.
+
+        This method should return a list of dictionaries that include a `partial` key pointing to the path of the html
+        profile partial. The `context` key should point to the dot separated string path to the templatetag that will
+        return a dictionary containing new context for the accompanying partial.
+        Typically, this partial will be a bootstrap card displaying some app specific user data.
+        """
+        profile_config = [
+            {
+                'partial': f'{self.name}/partials/nonlocalizedevents_user_profile.html',
+                'context': f'{self.name}.templatetags.nonlocalizedevents_extras.nonlocalizedevents_profile_data',
+            }
+        ]
+        return profile_config
+

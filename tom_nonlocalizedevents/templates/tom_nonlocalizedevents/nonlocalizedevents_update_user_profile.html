@@ -1,0 +1,17 @@
+{% extends 'tom_common/base.html' %}
+{% load bootstrap4 %}
+{% block title %}Update Non-localized Events User Profile{% endblock %}
+{% block content %}
+
+<h3>Non-localized Events User Profile update form for user: {{user.username}}</h3>
+<hr>
+<div class="w-50">  {# Sets the width to 50% #}
+    <form method="post">
+        {% csrf_token %}
+        {% bootstrap_form form %}
+        {% buttons %}
+        <button type="submit" class="btn btn-primary">Update</button>
+        {% endbuttons %}
+    </form>
+</div>
+{% endblock %}

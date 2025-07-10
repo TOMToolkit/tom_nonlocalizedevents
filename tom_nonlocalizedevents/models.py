@@ -3,6 +3,7 @@ from django.contrib.postgres.fields import BigIntegerRangeField
 from django.contrib.postgres.indexes import SpGistIndex
 from django.conf import settings
 
+from tom_common.models import EncryptableModelMixin, EncryptedProperty
 from tom_targets.models import Target
 
 import numpy as np
@@ -11,6 +12,19 @@ from healpix_alchemy.constants import HPX
 from astropy.coordinates import SkyCoord
 from urllib.parse import urljoin
 import logging
+
+
+class NonLocalizedEventsProfile(EncryptableModelMixin, models.Model):
+    treasuremap_username = models.CharField(max_length=255,
+                                            default='520520',
+                                            null=True, blank=True,
+                                            verbose_name='TreasureMap Username')
+
+    _treasuremap_apikey_encrypted = models.BinaryField(null=True, blank=True)  # encrypted data field (private)
+    treasuremap_apikey = EncryptedProperty('_treasuremap_apikey_encrypted')  # descriptor that provides access (public)
+
+    def __str__(self) -> str:
+        return f'{self.user.username} Non-localized Events Profile'
 
 
 def adapt_numpy_float64(np_float64):

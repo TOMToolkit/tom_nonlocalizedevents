@@ -1,0 +1,40 @@
+<table class="table table-sm">
+    <tbody>
+        <tr>
+            <th>Sequence Type</th>
+            <td>{{ sequence.sequence_type }}</td>
+        </tr>
+        <tr>
+            <th>Localization Name</th>
+            <td>{{ sequence.localization_name }}</td>
+        </tr>
+        <tr>
+            <th>Event Time</th>
+            <td>{{ sequence.event_time }}</td>
+        </tr>
+        <tr>
+            <th>Distance</th>
+            <td>{{ sequence.distance|floatformat:2 }} +/- {{ sequence.distance_error|floatformat:2 }} Mpc</td>
+        </tr>
+        <tr>
+            <th>Properties</th>
+            <td>
+                <ul>
+                {% for key, value in sequence.properties.items %}
+                    <li><b>{{ key }}</b>: {{ value }}</li>
+                {% endfor %}
+                </ul>
+            </td>
+        </tr>
+        <tr>
+            <th>References</th>
+            <td>
+                <ul>
+                {% for ref in references %}
+                    <li><a href="{{ ref.url }}">{{ ref.citation }}</a></li>
+                {% endfor %}
+                </ul>
+            </td>
+        </tr>
+    </tbody>
+</table>

@@ -1,0 +1,18 @@
+<div class="card-body">
+    <ul class="nav nav-tabs" id="sequenceTabs" role="tablist">
+        {% for sequence in expanded_sequences %}
+            <li class="nav-item">
+                <a class="nav-link {% if forloop.first %}active{% endif %}" id="tab-{{ forloop.counter0 }}" data-toggle="tab" href="#pane-{{ forloop.counter0 }}" role="tab">
+                    {{ sequence.localization_name }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+    <div class="tab-content" id="sequenceTabContent">
+        {% for sequence in expanded_sequences %}
+            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="pane-{{ forloop.counter0 }}" role="tabpanel">
+                {% include 'tom_nonlocalizedevents/partials/_superevent_detail.html' with sequence=sequence %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
