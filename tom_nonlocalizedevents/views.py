@@ -1,6 +1,8 @@
 import json
 import logging
+import requests
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.cache import cache
 from django.http import Http404
