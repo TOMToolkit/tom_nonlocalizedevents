@@ -18,8 +18,8 @@ from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
 from tom_nonlocalizedevents.forms import NonLocalizedEventsProfileForm
-from tom_nonlocalizedevents.ingestion import ingest_sequence_from_hermes_message
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent, NonLocalizedEventsProfile
+from tom_nonlocalizedevents.services import ingest_igwn_event_from_data
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 
@@ -76,9 +76,11 @@ class CreateEventFromHermesAlertView(View):
 
             # the NonLocalizedEvent is created by handling all the messages from
             # the event sequence as if they were ingested
-            for sequenced_message in cached_event['sequences']:
-                logger.debug(f"Creating sequence from HermesBroker: {sequenced_message}")
-                ingest_sequence_from_hermes_message(sequenced_message)
+            for alert_data in cached_event['sequences']:
+                logger.debug(f"Creating sequence from HermesBroker: {alert_data}")
+                # The cached data from Hermes does not contain the raw skymap bytes, only the URLs.
+                # The service function is designed to handle this, fetching the data via HTTP if needed.
+                ingest_igwn_event_from_data(alert_data)
 
         return redirect(reverse('nonlocalizedevents:index'))
 
