@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('superevent', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_nonlocalizedevents.superevent')),
-                ('target', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_targets.target')),
+                ('target', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_targets.BaseTarget')),
             ],
         ),
         migrations.AddConstraint(
