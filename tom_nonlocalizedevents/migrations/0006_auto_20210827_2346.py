@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('tom_targets', '0019_auto_20210811_0018'),
+        ('tom_targets', '0026_alter_basetarget_permissions'),
         ('tom_nonlocalizedevents', '0005_auto_20210319_2241'),
     ]
 
@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('superevent', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_nonlocalizedevents.superevent')),
-                ('target', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_targets.target')),
+                ('target', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tom_targets.basetarget')),
             ],
         ),
         migrations.AddConstraint(
