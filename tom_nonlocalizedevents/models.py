@@ -115,6 +115,7 @@ class EventLocalization(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     date = models.DateTimeField(
+        null=True, blank=True,
         help_text='The datestamp of this localizations creation.'
     )
     skymap_url = models.URLField(

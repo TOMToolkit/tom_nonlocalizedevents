@@ -143,7 +143,7 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
             distance_std = 0
             row_dist_mean = None
             row_dist_std = None
-        date = parse(skymap.meta['DATE']).replace(tzinfo=timezone.utc)
+        date = parse(skymap.meta['DATE']).replace(tzinfo=timezone.utc) if 'DATE' in skymap.meta else None
         skymap_version = get_skymap_version(nonlocalizedevent, skymap_hash=skymap_uuid, is_combined=is_combined)
         if not skymap_url:
             base_url = f"https://gracedb.ligo.org/api/superevents/{nonlocalizedevent.event_id}/files/"
