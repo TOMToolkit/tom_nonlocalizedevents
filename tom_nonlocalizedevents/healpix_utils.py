@@ -25,6 +25,7 @@ import uuid
 import sys
 import json
 import logging
+from copy import deepcopy
 
 # from django.db.models import Sum, Subquery, F, Min
 # from tom_nonlocalizedevents_base.settings import DATABASES
@@ -82,12 +83,13 @@ def get_confidence_regions(skymap: Table):
     """
     try:
         # Sort the pixels of the sky map by descending probability density
-        skymap.sort('PROBDENSITY', reverse=True)
+        skymap_sort = deepcopy(skymap)
+        skymap_sort.sort('PROBDENSITY', reverse=True)
         # Find the area of each pixel
-        level, ipix = ah.uniq_to_level_ipix(skymap['UNIQ'])
+        level, ipix = ah.uniq_to_level_ipix(skymap_sort['UNIQ'])
         pixel_area = ah.nside_to_pixel_area(ah.level_to_nside(level))
         # Calculate the probability within each pixel: the pixel area times the probability density
-        prob = pixel_area * skymap['PROBDENSITY']
+        prob = pixel_area * skymap_sort['PROBDENSITY']
         # Calculate the cumulative sum of the probability
         cumprob = np.cumsum(prob)
         # Find the pixel for which the probability sums to 0.5 (0.9)
