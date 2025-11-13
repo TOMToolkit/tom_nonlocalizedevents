@@ -23,7 +23,7 @@ def get_sequence_number(superevent_id: str) -> int:
 
 
 def handle_igwn_message(message: JSONBlob, metadata: Metadata):
-    alert = message.content[0]
+    alert = message.content
     logger.info(f"Handling igwn alert for event {alert.get('superevent_id')}")
 
     # Only store test alerts if we are configured to do so
