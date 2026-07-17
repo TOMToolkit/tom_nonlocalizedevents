@@ -41,3 +41,15 @@ class NonLocalizedEventsProfileForm(forms.ModelForm):
         if commit and not self.errors:
             instance.save()
         return instance
+
+
+class GraceDBEventIngestionForm(forms.Form):
+    """
+    A simple form to accept a GraceDB event ID for manual ingestion.
+    """
+    event_id = forms.CharField(
+        label='GraceDB SuperEvent ID',
+        max_length=100,
+        help_text='e.g., S230518h',
+        widget=forms.TextInput(attrs={'placeholder': 'S230518h'})
+    )

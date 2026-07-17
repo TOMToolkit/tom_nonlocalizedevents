@@ -18,6 +18,7 @@ app_name = 'nonlocalizedevents'
 
 urlpatterns = [
     path('', views.NonLocalizedEventListView.as_view(), name='index'),
+    path('ingest-gracedb/', views.IngestFromGraceDBView.as_view(), name='ingest-gracedb'),
     path('<int:pk>/', views.NonLocalizedEventDetailView.as_view(), name='detail'),
     path('<str:event_id>/', views.NonLocalizedEventDetailView.as_view(), name='event-detail'),
     path('alert/createfrom', views.CreateEventFromHermesAlertView.as_view(), name='create-from-alert'),

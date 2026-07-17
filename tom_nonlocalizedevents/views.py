@@ -9,17 +9,17 @@ from django.http import Http404
 from django.shortcuts import redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import DetailView, ListView
-from django.views.generic.base import View
-from django.views.generic.edit import UpdateView
+from django.views.generic.base import View, TemplateView
+from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse, reverse_lazy
 
 
 from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
-from tom_nonlocalizedevents.forms import NonLocalizedEventsProfileForm
+from tom_nonlocalizedevents.forms import GraceDBEventIngestionForm, NonLocalizedEventsProfileForm
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent, NonLocalizedEventsProfile
-from tom_nonlocalizedevents.services import ingest_igwn_event_from_data
+from tom_nonlocalizedevents.services.base import ingest_igwn_event_from_data
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 
@@ -80,7 +80,7 @@ class CreateEventFromHermesAlertView(View):
                 logger.debug(f"Creating sequence from HermesBroker: {alert_data}")
                 # The cached data from Hermes does not contain the raw skymap bytes, only the URLs.
                 # The service function is designed to handle this, fetching the data via HTTP if needed.
-                ingest_igwn_event_from_data(alert_data)
+                ingest_igwn_event_from_data(alert_data, ingestor_source='hop')
 
         return redirect(reverse('nonlocalizedevents:index'))
 
@@ -236,3 +236,39 @@ class ProfileUpdateView(UpdateView):
 
     def get_success_url(self):
         return reverse_lazy('user-profile')
+
+
+class IngestFromGraceDBView(LoginRequiredMixin, FormView):
+    """
+    A view that provides a form for users to manually ingest an event
+    from GraceDB by providing its event ID. It uses the centralized
+    ingestion service to perform the core logic.
+    """
+    template_name = 'tom_nonlocalizedevents/ingest_gracedb_form.html'
+    form_class = GraceDBEventIngestionForm
+    success_url = reverse_lazy('nonlocalizedevents:index')
+
+    def form_valid(self, form):
+        """
+        This method is called when valid form data has been POSTed. It calls
+        the ingestion service and uses the Django messages framework to provide
+        feedback to the user.
+        """
+        event_id = form.cleaned_data['event_id'].strip()
+        logger.info(f"User {self.request.user} initiated GraceDB ingestion for event: {event_id}")
+
+        try:
+            from .services import ingest_event_from_gracedb
+            success_count, errors = ingest_event_from_gracedb(event_id)
+
+            if success_count > 0:
+                messages.success(self.request, f"Successfully ingested {success_count} new sequence(s) for {event_id}.")
+            if not errors and success_count == 0:
+                messages.warning(self.request, f"No new sequences were ingested for {event_id}. It may already be up to date.")
+            for error in errors:
+                messages.error(self.request, f"Error for {event_id}: {error}")
+        except Exception as e:
+            messages.error(self.request, f"A critical error occurred during ingestion for {event_id}: {e}")
+            logger.exception(f"Critical failure during user-initiated ingestion for event {event_id}")
+
+        return super().form_valid(form)

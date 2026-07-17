@@ -1,15 +1,17 @@
 import logging
 import traceback
-import requests
-from typing import Dict, Any, Tuple, Optional
 
+import requests
+from typing import Dict, Any, List, Tuple, Optional
+
+from django.db import transaction
 from tom_nonlocalizedevents.healpix_utils import create_localization_for_skymap
 from tom_nonlocalizedevents.models import NonLocalizedEvent, EventSequence, ExternalCoincidence, EventLocalization
 
 logger = logging.getLogger(__name__)
 
 
-def ingest_igwn_event_from_data(alert_data: Dict[str, Any]) -> Tuple[Optional[NonLocalizedEvent], Optional[EventSequence]]:
+def ingest_igwn_event_from_data(alert_data: Dict[str, Any], ingestor_source: str = 'unknown') -> Tuple[Optional[NonLocalizedEvent], Optional[EventSequence]]:
     """
     A centralized service function to ingest a non-localized event from a data dictionary.
 
@@ -21,10 +23,17 @@ def ingest_igwn_event_from_data(alert_data: Dict[str, Any]) -> Tuple[Optional[No
     It handles:
     - Retractions
     - Idempotent creation of NonLocalizedEvent
-    - Processing of primary and combined skymaps (fetching from URL if necessary)
+    - Processing of primary and combined skymaps by fetching from URLs specified in the `urls` dictionary.
     - Creation of EventLocalization, ExternalCoincidence, and EventSequence records
 
-    :param alert_data: A dictionary containing the event data.
+    The expected `alert_data` structure is:
+    {
+        'superevent_id': str, 'alert_type': str, 'sequence_num': int,
+        'urls': {'skymap': 'http://...', 'combined_skymap': 'http://...'},
+        'event': { ... event details ... }, 'external_coinc': { ... coinc details ... }
+    }
+    :param alert_data: A dictionary containing the standardized event data.
+    :param ingestor_source: A string identifying the source of the ingestion (e.g., 'hop', 'gracedb').
     :return: A tuple containing the created/updated NonLocalizedEvent and EventSequence,
              or (None, None) if ingestion fails or is not applicable.
     """
@@ -51,25 +60,22 @@ def ingest_igwn_event_from_data(alert_data: Dict[str, Any]) -> Tuple[Optional[No
     if nle_created:
         logger.info(f"Created new NonLocalizedEvent: {event_id}")
 
-    # Make copies of the dictionaries to avoid modifying the original alert_data and to allow
-    # for the removal of the large skymap data before saving the remainder as JSON.
-    event_details = alert_data.get('event', {}).copy() if alert_data.get('event') else {}
-    external_coinc_details = alert_data.get('external_coinc', {}).copy() if alert_data.get('external_coinc') else {}
+    event_details = alert_data.get('event', {})
+    external_coinc_details = alert_data.get('external_coinc', {})
 
     # --- Process Primary Localization ---
     localization = _process_skymap(
         nonlocalizedevent=nonlocalizedevent,
-        skymap_bytes=event_details.pop('skymap', None),
+        skymap_bytes=None,  # This service fetches from URL, it does not expect raw bytes.
         skymap_url=alert_data.get('urls', {}).get('skymap'),
         pipeline=event_details.get('pipeline', ''),
         is_combined=False
     )
 
     # --- Process Combined Localization (External Coincidence) ---
-    external_coincidence = None
     combined_localization = _process_skymap(
         nonlocalizedevent=nonlocalizedevent,
-        skymap_bytes=external_coinc_details.pop('combined_skymap', None),
+        skymap_bytes=None,  # This service fetches from URL, it does not expect raw bytes.
         skymap_url=alert_data.get('urls', {}).get('combined_skymap'),
         pipeline=event_details.get('pipeline', ''),
         is_combined=True
@@ -94,7 +100,7 @@ def ingest_igwn_event_from_data(alert_data: Dict[str, Any]) -> Tuple[Optional[No
             'external_coincidence': external_coincidence,
             'details': event_details,
             'event_subtype': alert_data.get('alert_type'),
-            'ingestor_source': 'hop'  # TODO: Make this parameterizable
+            'ingestor_source': ingestor_source
         }
     )
 
