@@ -39,9 +39,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "poetry>=2.0,<3.0"
           poetry install --with test
-          poetry run python manage.py collectstatic --noinput
       - name: Run tests
-        run: poetry run python manage.py test --exclude-tag=canary
+        run: poetry run python tom_nonlocalizedevents/tests/run_tests.py
         env:
           DB_USER: postgres
           DB_PASS: postgres
