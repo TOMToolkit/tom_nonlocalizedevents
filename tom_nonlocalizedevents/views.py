@@ -3,10 +3,11 @@ import logging
 
 from django.contrib import messages
 from django.core.cache import cache
+from django.db.models import QuerySet
 from django.http import Http404
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, TemplateView
+from django.views.generic import DetailView, ListView, TemplateView
 from django.views.generic.base import View
 from django.urls import reverse
 from django.conf import settings
@@ -139,6 +140,36 @@ class EventLocalizationViewSet(viewsets.ModelViewSet):
     queryset = EventLocalization.objects.all()
     serializer_class = EventLocalizationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
+    """Server-rendered detail page for a single NonLocalizedEvent.
+
+    Renders entirely from local data -- no external API calls at request time.
+    Resolves its object by either primary key or ``event_id``, consolidating
+    the Pk- and Id-based lookups. This view will take over the ``detail`` and
+    ``event-detail`` URL names when the Vue frontend is removed; until then it
+    is exercised only by its tests.
+    """
+    model = NonLocalizedEvent
+    template_name = 'tom_nonlocalizedevents/nonlocalizedevent_detail.html'
+    context_object_name = 'nonlocalizedevent'
+
+    def get_object(self, queryset: QuerySet | None = None) -> NonLocalizedEvent:
+        """Retrieve the NonLocalizedEvent by pk or event_id, raising Http404 on a miss."""
+        if queryset is None:
+            queryset = self.get_queryset()
+        if 'pk' in self.kwargs:
+            return get_object_or_404(queryset, pk=self.kwargs['pk'])
+        if 'event_id' in self.kwargs:
+            return get_object_or_404(queryset, event_id=self.kwargs['event_id'])
+        raise Http404('No pk or event_id provided')
+
+    def get_context_data(self, **kwargs: dict) -> dict:
+        context = super().get_context_data(**kwargs)
+        # one query for the sequence table; each row also shows its localization's numbers
+        context['sequences'] = self.object.sequences.select_related('localization')
+        return context
 
 
 class SupereventPkView(LoginRequiredMixin, TemplateView):

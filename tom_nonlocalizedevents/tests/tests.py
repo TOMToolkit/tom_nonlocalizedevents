@@ -1,9 +1,12 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser, User
+from django.http import Http404
+from django.test import RequestFactory
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from tom_nonlocalizedevents.tests.factories import (NonLocalizedEventFactory, EventLocalizationFactory,
                                                     EventSequenceFactory)
+from tom_nonlocalizedevents.views import NonLocalizedEventDetailView
 
 
 class NonLocalizedEventAPITestCase(APITestCase):
@@ -56,3 +59,63 @@ class TestEventLocalizationViewSet(NonLocalizedEventAPITestCase):
         response = self.client.get(reverse('api:eventlocalization-list'))
 
         self.assertEqual(response.json()['count'], 2)
+
+
+class TestNonLocalizedEventDetailView(NonLocalizedEventAPITestCase):
+    """Exercise the server-rendered DetailView.
+
+    The view is called directly via RequestFactory because it is not routed
+    yet: the Vue-based Superevent views still own the detail/event-detail URL
+    names until the Vue frontend is removed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # give one sequence a realistic alert payload so content assertions
+        # can target values that cannot appear in the page by accident
+        self.sequence11.details = {
+            'time': '2026-07-17T01:23:45Z',
+            'far': 1.2e-9,
+            'significant': True,
+            'instruments': ['H1', 'L1', 'V1'],
+        }
+        self.sequence11.save()
+
+    def _render_detail(self, user=None, **url_kwargs):
+        request = RequestFactory().get('/nonlocalizedevents/dummy/')
+        request.user = user if user is not None else self.user
+        response = NonLocalizedEventDetailView.as_view()(request, **url_kwargs)
+        if hasattr(response, 'render'):
+            response.render()
+        return response
+
+    def test_detail_by_pk(self):
+        response = self._render_detail(pk=self.superevent1.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.superevent1.event_id)
+
+    def test_detail_by_event_id(self):
+        response = self._render_detail(event_id=self.superevent2.event_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.superevent2.event_id)
+
+    def test_detail_renders_sequence_and_localization_data(self):
+        response = self._render_detail(pk=self.superevent1.pk)
+
+        self.assertContains(response, '1.20e-09')  # details.far
+        self.assertContains(response, 'H1, L1, V1')  # details.instruments
+        self.assertContains(response, self.eventlocalization1.skymap_url)
+
+    def test_detail_missing_event_raises_404(self):
+        with self.assertRaises(Http404):
+            self._render_detail(pk=999999)
+        with self.assertRaises(Http404):
+            self._render_detail(event_id='no-such-event')
+
+    def test_detail_requires_login(self):
+        response = self._render_detail(user=AnonymousUser(), pk=self.superevent1.pk)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
