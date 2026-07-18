@@ -46,11 +46,16 @@ class TestNonLocalizedEventViewSet(NonLocalizedEventAPITestCase):
         self.assertContains(response, reverse('nonlocalizedevents:detail', args=(self.superevent2.pk,)))
 
     def test_superevent_detail_view(self):
+        """Both detail URL names now render the server-side page; no Vue remnants."""
         response = self.client.get(reverse('nonlocalizedevents:detail', args=(self.superevent1.pk,)))
 
         self.assertContains(response, self.superevent1.event_id)
-        self.assertContains(response, "superevent-sequences")
-        self.assertContains(response, "vue")
+        self.assertNotContains(response, 'vue')
+
+        response = self.client.get(reverse('nonlocalizedevents:event-detail', args=(self.superevent1.event_id,)))
+
+        self.assertContains(response, self.superevent1.event_id)
+        self.assertNotContains(response, 'vue')
 
 
 class TestEventLocalizationViewSet(NonLocalizedEventAPITestCase):
@@ -62,11 +67,10 @@ class TestEventLocalizationViewSet(NonLocalizedEventAPITestCase):
 
 
 class TestNonLocalizedEventDetailView(NonLocalizedEventAPITestCase):
-    """Exercise the server-rendered DetailView.
+    """Exercise the server-rendered DetailView directly via RequestFactory.
 
-    The view is called directly via RequestFactory because it is not routed
-    yet: the Vue-based Superevent views still own the detail/event-detail URL
-    names until the Vue frontend is removed.
+    Routing of the detail/event-detail URL names to this view is covered by
+    test_superevent_detail_view above.
     """
 
     def setUp(self):

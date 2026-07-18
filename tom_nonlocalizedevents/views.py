@@ -7,10 +7,9 @@ from django.db.models import QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import DetailView, ListView, TemplateView
+from django.views.generic import DetailView, ListView
 from django.views.generic.base import View
 from django.urls import reverse
-from django.conf import settings
 
 from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
@@ -172,33 +171,7 @@ class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-class SupereventPkView(LoginRequiredMixin, TemplateView):
-    template_name = 'tom_nonlocalizedevents/superevent_vue_app.html'
-
-    def get_context_data(self, **kwargs: dict) -> dict:
-        context = super().get_context_data(**kwargs)
-        try:
-            superevent = NonLocalizedEvent.objects.get(pk=kwargs['pk'])
-            data = NonLocalizedEventSerializer(instance=superevent).data
-            context['superevent_data'] = json.dumps(data)
-            context['tom_api_url'] = settings.TOM_API_URL
-            context['hermes_api_url'] = settings.HERMES_API_URL
-            return context
-        except NonLocalizedEvent.DoesNotExist:
-            raise Http404
-
-
-class SupereventIdView(LoginRequiredMixin, TemplateView):
-    template_name = 'tom_nonlocalizedevents/superevent_vue_app.html'
-
-    def get_context_data(self, **kwargs: dict) -> dict:
-        context = super().get_context_data(**kwargs)
-        try:
-            superevent = NonLocalizedEvent.objects.get(event_id=kwargs['event_id'])
-            data = NonLocalizedEventSerializer(instance=superevent).data
-            context['superevent_data'] = json.dumps(data)
-            context['tom_api_url'] = settings.TOM_API_URL
-            context['hermes_api_url'] = settings.HERMES_API_URL
-            return context
-        except NonLocalizedEvent.DoesNotExist:
-            raise Http404
+# The SupereventPkView and SupereventIdView are retained for
+# backwards compatibity (SAGUARO uses the -IdView)
+SupereventPkView = NonLocalizedEventDetailView
+SupereventIdView = NonLocalizedEventDetailView

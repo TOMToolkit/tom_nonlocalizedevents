@@ -46,10 +46,7 @@ def boot_django() -> None:
         # that produced it so makemigrations --check stays clean.
         DEFAULT_AUTO_FIELD='django.db.models.AutoField',
         TOM_NAME='Test TOM',
-        INSTALLED_APPS=TOMTOOKIT_INSTALLED_APPS + [
-            'webpack_loader',  # serves the Vue detail page; removed with the Vue frontend
-            APP_NAME,
-        ],
+        INSTALLED_APPS=TOMTOOKIT_INSTALLED_APPS + [APP_NAME],
         SITE_ID=1,
         EXTRA_FIELDS={},
         TIME_ZONE='UTC',
@@ -102,20 +99,6 @@ def boot_django() -> None:
         # Settings this app reads at runtime.
         HERMES_API_URL=os.getenv('HERMES_API_URL', 'https://hermes-dev.lco.global'),
         SAVE_TEST_ALERTS=True,
-        # TOM_API_URL and WEBPACK_LOADER exist only to serve the Vue detail
-        # page; both are removed with the Vue frontend. STATS_FILE points at
-        # the committed bundle in the app's static tree, so no collectstatic
-        # step is needed before running tests.
-        TOM_API_URL=os.getenv('TOM_API_URL', 'http://127.0.0.1:8000'),
-        WEBPACK_LOADER={
-            'TOM_NONLOCALIZEDEVENTS': {
-                'CACHE': False,
-                'BUNDLE_DIR_NAME': 'tom_nonlocalizedevents/vue/',  # must end with slash
-                'STATS_FILE': os.path.join(
-                    BASE_DIR, APP_NAME, 'static', 'tom_nonlocalizedevents', 'vue', 'webpack-stats.json'
-                ),
-            }
-        },
         FACILITIES={
             'LCO': {
                 'portal_url': 'https://observe.lco.global',
