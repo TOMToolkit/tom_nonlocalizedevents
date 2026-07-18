@@ -16,7 +16,7 @@ keywords = ["tomtoolkit", "astronomy", "astrophysics", "cosmology", "science"]
 classifiers = [
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 4.1",
+    "Framework :: Django :: 5.2",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Astronomy",
     "Topic :: Scientific/Engineering :: Physics"
 ]
@@ -36,10 +37,9 @@ requires-python = ">=3.10,<3.14"
 
 dependencies = [
     "astropy >=5.3.3,<8",
-    "gracedb-sdk <1",
     "hop-client >=0.10,<1.0",
     "python-dateutil <3",
-    "django-webpack-loader >=3.0,<4.0",
+    "requests >=2,<3",
     "tomtoolkit >=3,<4",
     "django-filter >=23.0,<30.0",
     "healpix-alchemy >=1.1.0,<2.0",
@@ -59,14 +59,17 @@ version = "0.0.0" # version supplied by poetry-dynamic-versioning
 
 [tool.poetry.group.test.dependencies]
 factory_boy = "^3.1.0"
-pytest = ">=8.0"
 
 [tool.poetry.group.coverage.dependencies]
 coverage = ">=6,<8" # coveralls needs ~6 even though 7.3.2 is latest
 coveralls = ">=3,<5"
 
 [tool.poetry.group.lint.dependencies]
-flake8 = ">=6.0,<7.2"
+flake8 = ">=6.0,<7.4"
+
+# ensure the versioning plugin is present in any poetry that installs this project
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
 
 
 [tool.poetry-dynamic-versioning]
@@ -79,6 +82,6 @@ style = "pep440"
 pattern = "(?x)^[v]?((?P<epoch>\\d+)!)?(?P<base>\\d+(\\.\\d+)*)([-._]?((?P<stage>[a-zA-Z]+)[-._]?(?P<revision>\\d+)?))?(\\+(?P<tagged_metadata>.+))?$"
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning >=1.0.0,<2.0.0"]
+requires = ["poetry-core >=2.0.0,<3.0.0", "poetry-dynamic-versioning >=1.0.0,<2.0.0"]
 build-backend = "poetry_dynamic_versioning.backend"
 # poetry_dynamic_versioning.backend is a thin wrapper around the standard build-backend = "poetry.core.masonry.api"
