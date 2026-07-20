@@ -1,27 +1,22 @@
-import json
 import logging
 
 from django.contrib import messages
-from django.core.cache import cache
-from django.db.models import QuerySet
-from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.db.models import QuerySet
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
+from django.urls import reverse_lazy
 from django.views.generic import DetailView, ListView
-from django.views.generic.base import View
 from django.views.generic.edit import FormView
-from django.urls import reverse, reverse_lazy
 
-from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import permissions, viewsets
 
 from tom_nonlocalizedevents.forms import GraceDBEventIngestionForm
-from tom_nonlocalizedevents.ingestion import ingest_sequence_from_hermes_message
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent
-from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
+from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 
 
 logger = logging.getLogger(__name__)
@@ -38,49 +33,6 @@ class NonLocalizedEventListView(LoginRequiredMixin, ListView):
         # '-created' is most recent first
         qs = NonLocalizedEvent.objects.order_by('-created')
         return qs
-
-
-# from the tom_alerts query_result.html
-class CreateEventFromHermesAlertView(View):
-    """
-    Creates the models.NonLocalizedEvent instance and redirect to NonLocalizedEventDetailView
-    """
-
-    def post(self, request, *args, **kwargs):
-        """
-        """
-        # the request.POST is a QueryDict object;
-        query_id = self.request.POST['query_id']
-
-        # events is a list[str] of NonLocalizedEvent event_id's: (e.g. 'MS230417a')
-        # (i.e the selected events from the query result form)
-        events = request.POST.getlist('events', [])
-
-        # if the user didn't select an alert; warn and re-direct back
-        if not events:
-            messages.warning(request, 'Please select at least one Event to create.')
-            reverse_url: str = reverse('tom_alerts:run', kwargs={'pk': query_id})
-            return redirect(reverse_url)
-
-        # Create NonLocalizedEvents for each of the selected events.
-        for event_id in events:
-            logger.debug(f'Creating event {event_id}...')
-            # extract the Hermes event from the cache
-            # (it was cached by tom_alerts.views.py::RunQueryView)
-            cached_event = json.loads(cache.get(f'alert_{event_id}'))
-
-            # early return: alert not in cache
-            if not cached_event:
-                messages.error(request, 'Could not createn event(s). Try re-running the query to refresh the cache.')
-                return redirect(reverse('tom_alerts:run', kwargs={'pk': query_id}))
-
-            # the NonLocalizedEvent is created by handling all the messages from
-            # the event sequence as if they were ingested
-            for sequenced_message in cached_event['sequences']:
-                logger.debug(f"Creating sequence from HermesBroker: {sequenced_message}")
-                ingest_sequence_from_hermes_message(sequenced_message)
-
-        return redirect(reverse('nonlocalizedevents:index'))
 
 
 #
