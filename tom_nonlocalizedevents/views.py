@@ -7,15 +7,19 @@ from django.db.models import QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 from django.views.generic import DetailView, ListView
 from django.views.generic.base import View
-from django.urls import reverse
+from django.views.generic.edit import FormView
+from django.urls import reverse, reverse_lazy
 
 from rest_framework import permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
+from tom_nonlocalizedevents.forms import GraceDBEventIngestionForm
 from tom_nonlocalizedevents.ingestion import ingest_sequence_from_hermes_message
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent
+from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 
@@ -169,6 +173,35 @@ class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
         # one query for the sequence table; each row also shows its localization's numbers
         context['sequences'] = self.object.sequences.select_related('localization')
         return context
+
+
+class IngestFromGraceDBView(LoginRequiredMixin, FormView):
+    """Present a form for manually ingesting an event from GraceDB by event ID.
+
+    The work is delegated to services.gracedb.ingest_event_from_gracedb, which
+    catches its own failures and reports them back as a list of error strings,
+    so no exception handling is needed here -- outcomes are relayed to the
+    user through the messages framework.
+    """
+    template_name = 'tom_nonlocalizedevents/ingest_gracedb_form.html'
+    form_class = GraceDBEventIngestionForm
+    success_url = reverse_lazy('nonlocalizedevents:index')
+
+    def form_valid(self, form: GraceDBEventIngestionForm) -> HttpResponse:
+        event_id = form.cleaned_data['event_id']
+        logger.info(f"User {self.request.user} initiated GraceDB ingestion for event: {event_id}")
+
+        success_count, errors = ingest_event_from_gracedb(event_id)
+
+        if success_count > 0:
+            messages.success(self.request, f"Successfully ingested {success_count} new sequence(s) for {event_id}.")
+        if not errors and success_count == 0:
+            messages.warning(self.request, f"No new sequences were ingested for {event_id}. "
+                                           f"It may already be up to date.")
+        for error in errors:
+            messages.error(self.request, f"Error for {event_id}: {error}")
+
+        return super().form_valid(form)
 
 
 # The SupereventPkView and SupereventIdView are retained for

@@ -1,9 +1,11 @@
 """Tests for the services package (event_ingest + gracedb)."""
 import importlib
+from io import StringIO
 from unittest import mock
 
 import responses
 
+from django.core.management import call_command
 from django.test import TestCase
 
 from tom_nonlocalizedevents.models import NonLocalizedEvent
@@ -143,3 +145,15 @@ class TestIngestEventFromGracedb(TestCase):
 
         self.assertEqual(success_count, 0)
         self.assertEqual(len(errors), 1)
+
+
+class TestIngestLVKEventCommand(TestCase):
+    @mock.patch('tom_nonlocalizedevents.management.commands.ingest_LVK_event.ingest_event_from_gracedb')
+    def test_command_invokes_service_and_reports(self, mock_ingest):
+        mock_ingest.return_value = (1, [])
+        out = StringIO()
+
+        call_command('ingest_LVK_event', 'S230518h', stdout=out)
+
+        mock_ingest.assert_called_once_with('S230518h')
+        self.assertIn('Successfully ingested 1 new sequence(s)', out.getvalue())

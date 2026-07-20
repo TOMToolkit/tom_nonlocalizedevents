@@ -1,6 +1,8 @@
+from unittest import mock
+
 from django.contrib.auth.models import AnonymousUser, User
 from django.http import Http404
-from django.test import RequestFactory
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
@@ -123,3 +125,63 @@ class TestNonLocalizedEventDetailView(NonLocalizedEventAPITestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn('login', response.url)
+
+
+class TestNonLocalizedEventListViewEmpty(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(username='empty_list_user')
+        self.client.force_login(self.user)
+
+    def test_empty_list_renders(self):
+        """Regression: the empty-list branch referenced tom_alerts:list, which is a
+        NoReverseMatch on any TOM Toolkit 3 TOM (tom_alerts is unmounted there)."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No events have been created')
+
+
+class TestIngestFromGraceDBView(TestCase):
+    """Uses Django's TestCase (not APITestCase): the ingest view is a plain form
+    view, and APIClient would POST JSON, which request.POST never sees."""
+
+    def setUp(self):
+        self.user = User.objects.create(username='ingest_user')
+        self.client.force_login(self.user)
+
+    def test_requires_login(self):
+        self.client.logout()
+        response = self.client.get(reverse('nonlocalizedevents:ingest-gracedb'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
+
+    def test_get_renders_form(self):
+        response = self.client.get(reverse('nonlocalizedevents:ingest-gracedb'))
+
+        self.assertContains(response, 'GraceDB SuperEvent ID')
+
+    @mock.patch('tom_nonlocalizedevents.views.ingest_event_from_gracedb')
+    def test_post_valid_event_id_ingests_and_redirects(self, mock_ingest):
+        mock_ingest.return_value = (2, [])
+
+        response = self.client.post(reverse('nonlocalizedevents:ingest-gracedb'), {'event_id': 'S230518h'})
+
+        self.assertRedirects(response, reverse('nonlocalizedevents:index'))
+        mock_ingest.assert_called_once_with('S230518h')
+
+    @mock.patch('tom_nonlocalizedevents.views.ingest_event_from_gracedb')
+    def test_post_reports_service_errors(self, mock_ingest):
+        mock_ingest.return_value = (0, ['GraceDB unreachable'])
+
+        response = self.client.post(reverse('nonlocalizedevents:ingest-gracedb'),
+                                    {'event_id': 'S000000a'}, follow=True)
+
+        rendered_messages = [m.message for m in response.context['messages']]
+        self.assertTrue(any('GraceDB unreachable' in m for m in rendered_messages))
+
+    def test_post_empty_event_id_rerenders_form(self):
+        response = self.client.post(reverse('nonlocalizedevents:ingest-gracedb'), {'event_id': ''})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This field is required')
