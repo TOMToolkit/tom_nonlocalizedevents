@@ -53,9 +53,12 @@
   </div>
 
   <div class="col-md-8">
-    {# One row per EventSequence (alert update), in sequence order; the alert
-       payload lives in the details JSON and the sky-localization numbers come
-       from the sequence's EventLocalization. #}
+    {% comment %}
+      One row per EventSequence (alert update), in sequence order; the alert
+      payload lives in the details JSON and the sky-localization numbers come
+      from the sequence's EventLocalization. ({# #} comments are single-line
+      only -- a multi-line one renders literally.)
+    {% endcomment %}
     <div class="card">
       <div class="card-header">Sequences</div>
       <div class="card-body table-responsive">

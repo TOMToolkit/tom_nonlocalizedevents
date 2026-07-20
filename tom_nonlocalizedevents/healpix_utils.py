@@ -1,34 +1,34 @@
 ''' This set of methods supports generating and querying healpix MOC maps for GW events,
     using healpix_alchemy and model mappings with sql_alchemy queries.
 '''
-from astropy.table import Table
-from tom_nonlocalizedevents.models import (NonLocalizedEvent, EventCandidate, SkymapTile,
-                                           EventLocalization, CredibleRegion)
-from django.db import transaction
-from django.conf import settings
-from django.utils import timezone
-from django.db.utils import IntegrityError
-from healpix_alchemy.constants import HPX, LEVEL
-from healpix_alchemy.types import Tile, Point
-import sqlalchemy as sa
-from sqlalchemy.orm import relationship, declarative_base, Session
-from astropy import units as u
-import astropy_healpix as ah
-from mocpy import MOC
-from ligo.skymap import distance
-from dateutil.parser import parse
-import numpy as np
-import os
+from copy import deepcopy
+from datetime import timezone
 import hashlib
 from io import BytesIO
-import uuid
-import sys
 import json
 import logging
-from copy import deepcopy
+import os
+import sys
+import uuid
 
-# from django.db.models import Sum, Subquery, F, Min
-# from tom_nonlocalizedevents_base.settings import DATABASES
+from django.conf import settings
+from django.db import transaction
+from django.db.utils import IntegrityError
+
+from astropy import units as u
+from astropy.table import Table
+import astropy_healpix as ah
+from dateutil.parser import parse
+from healpix_alchemy.constants import HPX, LEVEL
+from healpix_alchemy.types import Point, Tile
+from ligo.skymap import distance
+from mocpy import MOC
+import numpy as np
+import sqlalchemy as sa
+from sqlalchemy.orm import Session, declarative_base, relationship
+
+from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization,
+                                           NonLocalizedEvent, SkymapTile)
 
 
 logger = logging.getLogger(__name__)
