@@ -58,7 +58,7 @@ def handle_message(message):
         logger.warning(f"Incoming GW message did not have the expected fields, ignoring it: {fields.keys()}")
         return
 
-    if fields and fields['trigger_num'].startswith('M') and not settings.SAVE_TEST_ALERTS:
+    if fields and fields['trigger_num'].startswith('M') and not getattr(settings, 'SAVE_TEST_ALERTS', True):
         return
 
     if fields:
