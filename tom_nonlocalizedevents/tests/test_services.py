@@ -15,13 +15,12 @@ from tom_nonlocalizedevents.services.gracedb import _build_gracedb_alert_data, i
 
 class TestServicesPackageImports(TestCase):
     def test_services_modules_and_handlers_import(self):
-        """Import-wiring smoke test: every services module and both alert handlers import cleanly."""
+        """Import-wiring smoke test: every services module and the alert handler import cleanly."""
         for module_name in (
             'tom_nonlocalizedevents.services',
             'tom_nonlocalizedevents.services.event_ingest',
             'tom_nonlocalizedevents.services.gracedb',
             'tom_nonlocalizedevents.alertstream_handlers.igwn_event_handler',
-            'tom_nonlocalizedevents.alertstream_handlers.gcn_event_handler',
         ):
             importlib.import_module(module_name)
 
