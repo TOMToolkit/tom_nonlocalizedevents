@@ -5,34 +5,125 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import QuerySet
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse_lazy
-from django.views.generic import DetailView, ListView
+from django.urls import reverse, reverse_lazy
+from django.views.generic import DetailView
 from django.views.generic.edit import FormView
 
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.views import FilterView
 from rest_framework import permissions, viewsets
 
+from tom_common.htmx_table import HTMXTableViewMixin
+
+from tom_nonlocalizedevents.filters import (GammaRayBurstEventFilterSet, GravitationalWaveEventFilterSet,
+                                            NeutrinoEventFilterSet, NonLocalizedEventFilterSet,
+                                            UnknownEventFilterSet, XRayTransientEventFilterSet)
 from tom_nonlocalizedevents.forms import GraceDBEventIngestionForm
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
+from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, GravitationalWaveEventTable,
+                                           NeutrinoEventTable, NonLocalizedEventTable,
+                                           UnknownEventTable, XRayTransientEventTable)
 
 
 logger = logging.getLogger(__name__)
 
+# The event-type tabs of the list page, in display order: URL slug -> (event
+# type, Table, FilterSet). 'all' (event type None) shows every event; the GW
+# tab carries the full science table/filters; the others are stubs awaiting
+# type-specific columns and filters. The index lands on the GW tab.
+EVENT_TYPE_TABS = {
+    'all': (None, NonLocalizedEventTable, NonLocalizedEventFilterSet),
+    'gw': (NonLocalizedEvent.NonLocalizedEventType.GRAVITATIONAL_WAVE,
+           GravitationalWaveEventTable, GravitationalWaveEventFilterSet),
+    'grb': (NonLocalizedEvent.NonLocalizedEventType.GAMMA_RAY_BURST,
+            GammaRayBurstEventTable, GammaRayBurstEventFilterSet),
+    'neutrino': (NonLocalizedEvent.NonLocalizedEventType.NEUTRINO,
+                 NeutrinoEventTable, NeutrinoEventFilterSet),
+    'xray': (NonLocalizedEvent.NonLocalizedEventType.X_RAY_TRANSIENT,
+             XRayTransientEventTable, XRayTransientEventFilterSet),
+    'unknown': (NonLocalizedEvent.NonLocalizedEventType.UNKNOWN,
+                UnknownEventTable, UnknownEventFilterSet),
+}
 
-class NonLocalizedEventListView(LoginRequiredMixin, ListView):
+# reverse map for per-event-type detail template resolution ('all' has no type)
+SLUG_BY_EVENT_TYPE = {entry[0].value: slug for slug, entry in EVENT_TYPE_TABS.items()
+                      if entry[0] is not None}
+
+
+class NonLocalizedEventListView(LoginRequiredMixin, HTMXTableViewMixin, FilterView):
+    """Filterable, sortable event list on the TOM Toolkit htmx-table machinery.
+
+    Columns and filters follow SAGUARO's event list pages (see tables.py /
+    filters.py). The index lands on the Gravitational Wave tab; the other
+    event-type tabs (and All) lazy-load via EventTypeTabView. The rendering
+    contract for TOMs that override index.html is unchanged in shape:
+    template name tom_nonlocalizedevents/index.html with object_list in the
+    context -- though object_list is now the GW page, not all events.
     """
-    Unadorned Django ListView subclass for NonLocalizedEvent model.
-    """
-    model = NonLocalizedEvent
     template_name = 'tom_nonlocalizedevents/index.html'
+    model = NonLocalizedEvent
+    paginate_by = 20
+    strict = False  # an empty or partial GET applies no filters, rather than matching nothing
+    ordering = ['-created']
 
-    def get_queryset(self):
-        # '-created' is most recent first
-        qs = NonLocalizedEvent.objects.order_by('-created')
-        return qs
+    # the index's default tab configuration (GW); EventTypeTabView overrides
+    # these per URL slug from EVENT_TYPE_TABS
+    tab_slug = 'gw'
+    event_type = NonLocalizedEvent.NonLocalizedEventType.GRAVITATIONAL_WAVE
+    table_class = GravitationalWaveEventTable
+    filterset_class = GravitationalWaveEventFilterSet
+
+    def get_queryset(self) -> QuerySet:
+        # prefetch what the table's latest-sequence columns render, so the page
+        # issues a constant number of queries instead of one per row
+        queryset = super().get_queryset().prefetch_related('sequences__localization')
+        if self.event_type is not None:  # None: the All tab
+            queryset = queryset.filter(event_type=self.event_type)
+        return queryset
+
+    def get_template_names(self) -> list[str]:
+        # a tab click (HX-Target: event-tabs-region) receives the whole region
+        # (nav + filter form + table); other htmx requests (sorting, filtering,
+        # pagination) receive just the table partial from the mixin
+        if self.request.htmx and self.request.htmx.target == 'event-tabs-region':
+            return ['tom_nonlocalizedevents/partials/event_tabs_region.html']
+        return super().get_template_names()
+
+    def get_context_data(self, **kwargs) -> dict:
+        context = super().get_context_data(**kwargs)
+        context['tabs'] = self.tab_navigation()
+        context['active_tab'] = self.tab_slug
+        return context
+
+    @staticmethod
+    def tab_navigation() -> list[dict]:
+        """The tab strip, in EVENT_TYPE_TABS order: All left-most, then the types."""
+        return [{'slug': slug,
+                 'label': entry[0].label if entry[0] is not None else 'All',
+                 'url': reverse('nonlocalizedevents:tab', args=(slug,))}
+                for slug, entry in EVENT_TYPE_TABS.items()]
+
+
+class EventTypeTabView(NonLocalizedEventListView):
+    """One tab of the list page, configured per URL slug from EVENT_TYPE_TABS.
+
+    The same machinery as the index, over the tab's queryset with the tab's
+    own Table and FilterSet. Non-htmx GETs render the full page with this tab
+    active (the tabs are bookmarkable); htmx tab clicks receive just the tabs
+    region.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        self.tab_slug = kwargs['event_type_slug']
+        if self.tab_slug not in EVENT_TYPE_TABS:
+            raise Http404(f'Unknown event-type tab: {self.tab_slug}')
+        # instance attributes shadow the class-level (GW) configuration; the
+        # inherited get_queryset/get_table_class/get_filterset_class read them
+        self.event_type, self.table_class, self.filterset_class = EVENT_TYPE_TABS[self.tab_slug]
+        return super().dispatch(request, *args, **kwargs)
 
 
 #
@@ -107,8 +198,14 @@ class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
     is exercised only by its tests.
     """
     model = NonLocalizedEvent
-    template_name = 'tom_nonlocalizedevents/nonlocalizedevent_detail.html'
     context_object_name = 'nonlocalizedevent'
+
+    def get_template_names(self) -> list[str]:
+        # per-event-type template first (stubs today, extending the generic
+        # page), with the generic template as fallback
+        type_slug = SLUG_BY_EVENT_TYPE.get(self.object.event_type, 'unknown')
+        return [f'tom_nonlocalizedevents/detail/{type_slug}_detail.html',
+                'tom_nonlocalizedevents/nonlocalizedevent_detail.html']
 
     def get_object(self, queryset: QuerySet | None = None) -> NonLocalizedEvent:
         """Retrieve the NonLocalizedEvent by pk or event_id, raising Http404 on a miss."""

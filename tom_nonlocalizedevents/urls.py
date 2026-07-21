@@ -21,6 +21,7 @@ urlpatterns = [
     # literal routes MUST be registered before the '<str:event_id>/' catch-all,
     # which matches any single path segment
     path('ingest-gracedb/', views.IngestFromGraceDBView.as_view(), name='ingest-gracedb'),
+    path('tab/<str:event_type_slug>/', views.EventTypeTabView.as_view(), name='tab'),
     path('<int:pk>/', views.NonLocalizedEventDetailView.as_view(), name='detail'),
     path('<str:event_id>/', views.NonLocalizedEventDetailView.as_view(), name='event-detail'),
 ]

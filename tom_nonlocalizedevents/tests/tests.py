@@ -3,7 +3,7 @@ from unittest import mock
 from django.contrib.auth.models import AnonymousUser, User
 from django.http import Http404
 from django.test import RequestFactory, TestCase
-from django.urls import reverse
+from django.urls import resolve, reverse
 from rest_framework.test import APITestCase
 
 from tom_nonlocalizedevents.tests.factories import (NonLocalizedEventFactory, EventLocalizationFactory,
@@ -44,8 +44,9 @@ class TestNonLocalizedEventViewSet(NonLocalizedEventAPITestCase):
 
         self.assertContains(response, self.superevent1.event_id)
         self.assertContains(response, self.superevent2.event_id)
-        self.assertContains(response, reverse('nonlocalizedevents:detail', args=(self.superevent1.pk,)))
-        self.assertContains(response, reverse('nonlocalizedevents:detail', args=(self.superevent2.pk,)))
+        # the table's Event ID column links to the event-detail (str event_id) URL name
+        self.assertContains(response, reverse('nonlocalizedevents:event-detail', args=(self.superevent1.event_id,)))
+        self.assertContains(response, reverse('nonlocalizedevents:event-detail', args=(self.superevent2.event_id,)))
 
     def test_superevent_detail_view(self):
         """Both detail URL names now render the server-side page; no Vue remnants."""
@@ -53,6 +54,9 @@ class TestNonLocalizedEventViewSet(NonLocalizedEventAPITestCase):
 
         self.assertContains(response, self.superevent1.event_id)
         self.assertNotContains(response, 'vue')
+        # a GW event resolves its per-type detail stub, which extends the generic page
+        self.assertTemplateUsed(response, 'tom_nonlocalizedevents/detail/gw_detail.html')
+        self.assertTemplateUsed(response, 'tom_nonlocalizedevents/nonlocalizedevent_detail.html')
 
         response = self.client.get(reverse('nonlocalizedevents:event-detail', args=(self.superevent1.event_id,)))
 
@@ -185,3 +189,215 @@ class TestIngestFromGraceDBView(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'This field is required')
+
+
+class TestNonLocalizedEventTablePage(TestCase):
+    """The SAGUARO-shaped htmx-table list page: columns, filters, partial refresh."""
+
+    def setUp(self):
+        self.user = User.objects.create(username='table_user')
+        self.client.force_login(self.user)
+        # a significant, close CBC event
+        self.significant = NonLocalizedEventFactory.create(event_id='S250721aa')
+        loc1 = EventLocalizationFactory.create(nonlocalizedevent=self.significant,
+                                               distance_mean=40., distance_std=10.)
+        EventSequenceFactory.create(
+            nonlocalizedevent=self.significant, localization=loc1, sequence_id=1,
+            event_subtype='INITIAL',
+            details={'far': 1e-10, 'significant': True, 'group': 'CBC',
+                     'classification': {'BNS': 0.95, 'BBH': 0.04, 'Terrestrial': 0.01},
+                     'properties': {'HasNS': 0.97, 'HasRemnant': 0.9}},
+        )
+        # an insignificant, distant test event
+        self.marginal = NonLocalizedEventFactory.create(event_id='MS250721bb')
+        loc2 = EventLocalizationFactory.create(nonlocalizedevent=self.marginal,
+                                               distance_mean=3000., distance_std=800.)
+        EventSequenceFactory.create(
+            nonlocalizedevent=self.marginal, localization=loc2, sequence_id=1,
+            event_subtype='PRELIMINARY',
+            details={'far': 1e-6, 'significant': False, 'group': 'CBC',
+                     'classification': {'BBH': 0.7, 'Terrestrial': 0.3},
+                     'properties': {'HasNS': 0.01, 'HasRemnant': 0.0}},
+        )
+
+    def test_science_columns_render(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertContains(response, 'BNS')          # most likely classification
+        self.assertContains(response, '40 ± 10 Mpc')  # SAGUARO-style distance
+        self.assertContains(response, '97%')          # HasNS percent
+        self.assertContains(response, 'fw-bold')      # significant row is bold
+        self.assertContains(response, '3.0 ± 0.8 Gpc')  # Gpc conversion
+
+    def test_flat_filter_form_no_advanced_collapse(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertContains(response, 'filter-form')
+        self.assertNotContains(response, 'advancedFilters')
+        self.assertNotContains(response, 'Advanced')
+
+    def test_filter_form_uses_our_crispy_layout_without_submit(self):
+        """Regression: the DRF FilterSet underneath HTMXTableFilterSet pre-attaches
+        its own crispy helper (stacked fields, bootstrap3, a Submit button) on every
+        form access -- our flat layout must REPLACE it, not defer to it."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertNotContains(response, 'value="Submit"')  # htmx filtering has no submit button
+        self.assertNotContains(response, 'btn-default')     # the DRF helper's bootstrap3 styling
+        self.assertContains(response, 'col-12 col-md')      # our single-line flexible-width layout
+
+    def test_general_search_matches_event_id_only(self):
+        """The query field searches event_id -- not every model field, where common
+        substrings match all rows and the search appears dead."""
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'query': 'MS2507'})
+        self.assertContains(response, self.marginal.event_id)
+        self.assertNotContains(response, self.significant.event_id)
+
+        # 'Gravitational' matches both events' event_type; event_id-only search must not
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'query': 'Gravitational'})
+        self.assertNotContains(response, self.marginal.event_id)
+        self.assertNotContains(response, self.significant.event_id)
+
+    def test_clear_filters_button_present(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertContains(response, 'Clear Filters')
+        self.assertContains(response, f'href="{reverse("nonlocalizedevents:index")}"')
+
+    def test_column_headers_match_filter_labels(self):
+        """HasNS/HasRemnant appear as both a column header and a filter label, so the
+        correspondence is visible (SAGUARO's 'NS?'/'Bright?' abbreviations obscured it)."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertContains(response, 'HasNS')
+        self.assertContains(response, 'HasRemnant')
+
+    def test_event_link_opts_out_of_htmx_boost(self):
+        """Regression: the table element carries hx-boost for sorting/pagination;
+        without the opt-out, clicking an event link swaps the detail page INTO
+        the table container instead of navigating to it."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        detail_url = reverse('nonlocalizedevents:event-detail', args=(self.significant.event_id,))
+        self.assertContains(response, f'href="{detail_url}" hx-boost="false"')
+
+    def test_htmx_request_returns_partial(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'), HTTP_HX_REQUEST='true')
+
+        self.assertTemplateUsed(
+            response, 'tom_nonlocalizedevents/partials/nonlocalizedevent_table_partial.html')
+        # the partial carries no <form> element (the table attrs may reference
+        # "#filter-form", so match the element, not the bare string)
+        self.assertNotContains(response, '<form id="filter-form"')
+
+    def test_inverse_far_filter_uses_latest_sequence(self):
+        """1/FAR > 1 yr keeps only the far=1e-10 event (1/FAR ~ 300 yr)."""
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'inv_far_min': '1'})
+
+        self.assertContains(response, self.significant.event_id)
+        self.assertNotContains(response, self.marginal.event_id)
+
+    def test_distance_filter(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'distance_max': '100'})
+
+        self.assertContains(response, self.significant.event_id)
+        self.assertNotContains(response, self.marginal.event_id)
+
+    def test_prefix_filter_test_events(self):
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'prefix': 'MS'})
+
+        self.assertContains(response, self.marginal.event_id)
+        self.assertNotContains(response, self.significant.event_id)
+
+    def test_state_filter(self):
+        self.marginal.state = 'RETRACTED'
+        self.marginal.save()
+
+        response = self.client.get(reverse('nonlocalizedevents:index'), {'state': 'RETRACTED'})
+
+        self.assertContains(response, self.marginal.event_id)
+        self.assertNotContains(response, self.significant.event_id)
+
+    def test_object_list_contract_for_template_overrides(self):
+        """SNEx2 overrides index.html and iterates object_list -- keep it in context."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        self.assertIn('object_list', response.context)
+        self.assertEqual(len(response.context['object_list']), 2)
+
+
+class TestEventTypeTabs(TestCase):
+    """The lazy-loading event-type tabs: per-type querysets, stub tables and
+    filters, the htmx region swap, and the URL-ordering guard."""
+
+    def setUp(self):
+        self.user = User.objects.create(username='tabs_user')
+        self.client.force_login(self.user)
+        self.gw = NonLocalizedEventFactory.create(event_id='S250721gw')  # model default type is GW
+        self.grb = NonLocalizedEventFactory.create(event_id='S250721gr', event_type='GRB')
+        self.xrt = NonLocalizedEventFactory.create(event_id='S250721xr', event_type='XRT')
+
+    def test_index_lands_on_gw_tab(self):
+        """The index IS the GW tab (William's default), with the full tab nav."""
+        response = self.client.get(reverse('nonlocalizedevents:index'))
+
+        for label in ('All', 'Gravitational Wave', 'Gamma-ray Burst', 'Neutrino',
+                      'X-ray Transient', 'Unknown'):
+            self.assertContains(response, label)
+        self.assertContains(response, self.gw.event_id)
+        self.assertNotContains(response, self.grb.event_id)  # GW tab: no other types
+        self.assertContains(response, '1/FAR')               # the GW science table
+        # lazy loading: exactly one table renders on page load
+        self.assertEqual(response.content.decode().count('<table'), 1)
+
+    def test_all_tab_shows_every_type(self):
+        """All is the left-most tab, at tab/all/, with the generic table."""
+        response = self.client.get(reverse('nonlocalizedevents:tab', args=('all',)))
+
+        for event in (self.gw, self.grb, self.xrt):
+            self.assertContains(response, event.event_id)
+
+    def test_gw_tab_filters_type_and_uses_science_table(self):
+        response = self.client.get(reverse('nonlocalizedevents:tab', args=('gw',)))
+
+        self.assertContains(response, self.gw.event_id)
+        self.assertNotContains(response, self.grb.event_id)
+        self.assertContains(response, '1/FAR')                 # science columns present
+        self.assertNotContains(response, '?sort=event_type')   # type column dropped on a typed tab
+
+    def test_stub_tab_uses_generic_table_and_filters(self):
+        response = self.client.get(reverse('nonlocalizedevents:tab', args=('grb',)))
+
+        self.assertContains(response, self.grb.event_id)
+        self.assertNotContains(response, self.gw.event_id)
+        self.assertNotContains(response, '1/FAR')        # GW science columns absent
+        self.assertNotContains(response, 'HasNS')        # GW science filters absent
+        self.assertContains(response, 'General search')  # common filters present
+
+    def test_xray_transient_tab(self):
+        response = self.client.get(reverse('nonlocalizedevents:tab', args=('xray',)))
+
+        self.assertContains(response, self.xrt.event_id)
+        self.assertNotContains(response, self.gw.event_id)
+
+    def test_unknown_tab_slug_404s(self):
+        response = self.client.get(reverse('nonlocalizedevents:tab', args=('bogus',)))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_htmx_tab_click_returns_region_partial(self):
+        response = self.client.get(
+            reverse('nonlocalizedevents:tab', args=('gw',)),
+            HTTP_HX_REQUEST='true', HTTP_HX_TARGET='event-tabs-region')
+
+        self.assertTemplateUsed(response, 'tom_nonlocalizedevents/partials/event_tabs_region.html')
+        self.assertContains(response, 'nav-tabs')     # the nav travels with the region
+        self.assertContains(response, 'filter-form')  # so does the tab's filter form
+        self.assertNotContains(response, '<h2>')      # but not the page chrome
+
+    def test_tab_route_precedes_event_id_catch_all(self):
+        """'tab' is a literal path segment the '<str:event_id>/' catch-all would
+        otherwise swallow -- this guards the registration order."""
+        match = resolve('/nonlocalizedevents/tab/gw/')
+
+        self.assertEqual(match.view_name, 'nonlocalizedevents:tab')

@@ -1,50 +1,18 @@
-{% extends 'tom_common/index.html' %}
-<!-- tom_superevent/index.html -->
+{% extends 'tom_common/base.html' %}
+
+{% block title %}Non-Localized Events{% endblock %}
+
 {% block content %}
-<!-- block content -->
-<h1>Non-Localized Event Index</h1>
+<h2>Non-Localized Events</h2>
 <p><a href="{% url 'nonlocalizedevents:ingest-gracedb' %}" class="btn btn-outline-primary btn-sm">
     Ingest event from GraceDB</a></p>
-{% if object_list %}
-  <table class="table">
-      <thead>
-      <tr>
-        <th scope="col">Event Type</th>
-        <th scope="col">Detail Page</th>
-        <th scope="col">State</th>
-        <th scope="col">Updated (in TOM)</th>
-        <th scope="col">Created (in TOM)</th>
-        <th scope="col">Hermes</th>
-        <th scope="col">GraceDB</th>
-        <th scope="col">Treasure Map</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% for event in object_list %}
-      <tr>
-        <td>{{ event.event_type }}</td>
-        <td scope="row">
-            <a href="{% url 'nonlocalizedevents:detail'  event.id %}"><b>{{ event.event_id }}</b> Details</a>
-        </td>
-        <td>{{event.state }}</td>
-        <td>{{event.modified | timesince }}</td>
-        <td>{{event.created | timesince }}</td>
-        <td>
-          <a href="{{ event.hermes_url }}">{{ event.event_id }}</a>
-        </td>
-        <td>
-          <a href="{{ event.gracedb_url }}">{{ event.event_id }}</a>
-        </td>
-        <td>
-            <a href="{{ event.treasuremap_url }}">{{ event.event_id }}</a>
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-  </table>
-{% else %}
-    <p>No events have been created. Ingest an event from GraceDB with the button above,
-        via the REST API, or with the readstreams management command.</p>
-{% endif %}
 
-{% endblock content %}
+{% comment %}
+  One tab per event type, lazy-loaded: only the active tab's filters + table
+  render; clicking a tab htmx-swaps the whole region (nav included, so the
+  active state travels with the content).
+{% endcomment %}
+<div id="event-tabs-region">
+    {% include 'tom_nonlocalizedevents/partials/event_tabs_region.html' %}
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{# The tabs region: nav + the active tab's filter form + table. Tab clicks swap #}
+{# this whole region so the nav's active state stays in step with the content. #}
+{% load crispy_forms_tags %}
+
+<ul class="nav nav-tabs mb-3">
+    {% for tab in tabs %}
+    <li class="nav-item">
+        <a class="nav-link{% if tab.slug == active_tab %} active{% endif %}"
+           href="{{ tab.url }}"
+           hx-get="{{ tab.url }}" hx-target="#event-tabs-region" hx-swap="innerHTML"
+           hx-indicator=".progress">{{ tab.label }}</a>
+    </li>
+    {% endfor %}
+</ul>
+
+{# Filter form: id="filter-form" is referenced by the table's hx-include attrs; #}
+{# request.path keeps filtering and Clear Filters scoped to the active tab #}
+<form id="filter-form" class="mb-3"
+  hx-get="{{ request.path }}"
+  hx-target="div.table-container"
+  hx-swap="innerHTML"
+  hx-indicator=".progress">
+    {% crispy filter.form %}
+</form>
+
+{# Progress indicator shown during htmx requests #}
+<div class="progress">
+    <div class="indeterminate"></div>
+</div>
+
+{# The hx-target for sorting/pagination/filtering partial refreshes #}
+<div class="table-container">
+    {% include 'tom_nonlocalizedevents/partials/nonlocalizedevent_table_partial.html' %}
+</div>
