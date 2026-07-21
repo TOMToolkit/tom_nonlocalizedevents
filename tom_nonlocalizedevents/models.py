@@ -43,6 +43,7 @@ class NonLocalizedEvent(models.Model):
         GRAVITATIONAL_WAVE = 'GW', 'Gravitational Wave'
         GAMMA_RAY_BURST = 'GRB', 'Gamma-ray Burst'
         NEUTRINO = 'NU', 'Neutrino'
+        X_RAY_TRANSIENT = 'XRT', 'X-ray Transient'
         UNKNOWN = 'UNK', 'Unknown'
 
     class NonLocalizedEventState(models.TextChoices):
