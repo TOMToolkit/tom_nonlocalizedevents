@@ -1,0 +1,25 @@
+# Local PostgreSQL for tom_nonlocalizedevents development and testing.
+#
+# Usage:
+#   docker compose up -d        # start postgres in the background
+#   docker compose down         # stop and remove the container
+#   docker compose down -v      # also wipe the database volume
+#
+# The credentials below match the test harness defaults
+# (tom_nonlocalizedevents/tests/boot_django.py) and the DATABASES example in
+# the README. Do not point a production TOM at this; it is intentionally
+# permissive.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tom_nonlocalizedevents
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
