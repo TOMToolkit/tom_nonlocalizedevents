@@ -193,8 +193,26 @@ class EventSequence(models.Model):
         default='', max_length=64,
         help_text='The source of this alert - i.e. which stream is it from?'
     )
+    hermes_message_id = models.UUIDField(
+        null=True, blank=True,
+        help_text='The Hermes message UUID for the alert this sequence was ingested from '
+                  '(the hop kafka "_id" header). Null for sequences with no Hermes message, '
+                  'e.g. GraceDB back-fill.'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+
+    @property
+    def hermes_url(self) -> str | None:
+        """The Hermes message page for the alert this sequence came from, or None.
+
+        Unlike NonLocalizedEvent.hermes_url (an event-level page), this links the
+        specific Hermes MESSAGE -- one event accumulates many messages (INITIAL,
+        PRELIMINARY, UPDATE, RETRACTION).
+        """
+        if self.hermes_message_id is None:
+            return None
+        return urljoin(settings.HERMES_API_URL, f'/message/{self.hermes_message_id}')
 
     class Meta:
         ordering = ["sequence_id"]

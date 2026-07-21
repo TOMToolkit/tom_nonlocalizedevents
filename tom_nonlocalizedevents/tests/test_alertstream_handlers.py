@@ -1,5 +1,6 @@
 """Tests for the alert-stream handlers."""
 from types import SimpleNamespace
+from uuid import uuid4
 
 from django.test import TestCase, override_settings
 
@@ -64,3 +65,30 @@ class TestHandleIgwnMessage(TestCase):
         nle, _ = handle_igwn_message(message, metadata=None)
 
         self.assertEqual(nle.event_id, 'MS250720c')
+
+
+class TestHermesMessageIdExtraction(TestCase):
+    """The hop '_id' kafka header is Hermes's message UUID; store it per sequence."""
+
+    def test_id_header_stored_and_builds_hermes_url(self):
+        message_uuid = uuid4()
+        message = SimpleNamespace(content=dict(ALERT, superevent_id='S250722aa'))
+        metadata = SimpleNamespace(headers=[('gcn_notice_type', b'x'), ('_id', message_uuid.bytes)])
+
+        nle, seq = handle_igwn_message(message, metadata=metadata)
+
+        self.assertEqual(seq.hermes_message_id, message_uuid)
+        self.assertIn(f'/message/{message_uuid}', seq.hermes_url)
+
+    def test_absent_or_garbage_header_stores_none(self):
+        cases = (None,
+                 SimpleNamespace(headers=None),
+                 SimpleNamespace(headers=[]),
+                 SimpleNamespace(headers=[('_id', b'not-a-uuid!')]))
+        for i, metadata in enumerate(cases):
+            message = SimpleNamespace(content=dict(ALERT, superevent_id=f'S250722b{i}'))
+
+            nle, seq = handle_igwn_message(message, metadata=metadata)
+
+            self.assertIsNone(seq.hermes_message_id)
+            self.assertIsNone(seq.hermes_url)

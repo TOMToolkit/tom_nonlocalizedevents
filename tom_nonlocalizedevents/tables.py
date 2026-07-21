@@ -179,10 +179,15 @@ class NonLocalizedEventTable(HTMXTable):
 
     def render_external_links(self, record: NonLocalizedEvent) -> str:
         """Favicon links to external services; GraceDB/Treasure Map only apply to GW events."""
+        sequence = latest_sequence(record)
+        # link the LATEST sequence's Hermes message page when its UUID is known;
+        # fall back to the event-level Hermes URL (per-sequence links, one per
+        # alert, live on the detail page)
+        hermes_url = (sequence.hermes_url if sequence else None) or record.hermes_url
         links = [format_html(
-            '<a href="{}" target="_blank" rel="noopener" title="Hermes">'
+            '<a href="{}" target="_blank" rel="noopener" title="Hermes (latest message)">'
             '<img src="https://hermes.lco.global/favicon.ico" alt="Hermes" height="16"></a>',
-            record.hermes_url)]
+            hermes_url)]
         if record.event_type == NonLocalizedEvent.NonLocalizedEventType.GRAVITATIONAL_WAVE:
             links.append(format_html(
                 '<a href="{}" target="_blank" rel="noopener" title="GraceDB">'

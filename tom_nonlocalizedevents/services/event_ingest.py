@@ -8,6 +8,7 @@ call :func:`ingest_igwn_event_from_data`.
 """
 import logging
 import traceback
+import uuid as uuid_module
 from typing import Any
 
 import requests
@@ -22,7 +23,8 @@ REQUESTS_TIMEOUT = 60
 
 
 def ingest_igwn_event_from_data(alert_data: dict[str, Any],
-                                ingestor_source: str = 'unknown'
+                                ingestor_source: str = 'unknown',
+                                hermes_message_id: uuid_module.UUID | None = None
                                 ) -> tuple[NonLocalizedEvent | None, EventSequence | None]:
     """Ingest a non-localized event from a standardized data dictionary.
 
@@ -52,6 +54,8 @@ def ingest_igwn_event_from_data(alert_data: dict[str, Any],
         alert_data: A dictionary containing the standardized event data.
         ingestor_source: Identifies the source of the ingestion (e.g. 'hop',
             'gracedb'); stored on the EventSequence.
+        hermes_message_id: The Hermes message UUID for this alert (the hop
+            '_id' kafka header), stored on the EventSequence when known.
 
     Returns:
         A tuple of the created/updated NonLocalizedEvent and EventSequence,
@@ -118,16 +122,22 @@ def ingest_igwn_event_from_data(alert_data: dict[str, Any],
         # Fallback for streams that don't provide a sequence number.
         sequence_id = nonlocalizedevent.sequences.count() + 1
 
+    sequence_defaults = {
+        'localization': localization,
+        'external_coincidence': external_coincidence,
+        'details': event_details,
+        'event_subtype': alert_data.get('alert_type'),
+        'ingestor_source': ingestor_source
+    }
+    if hermes_message_id is not None:
+        # only set when known: a UUID-less update of an existing sequence
+        # (e.g. a GraceDB back-fill refreshing a stream-ingested one) must
+        # not null out the stored message id
+        sequence_defaults['hermes_message_id'] = hermes_message_id
     event_sequence, es_created = EventSequence.objects.update_or_create(
         nonlocalizedevent=nonlocalizedevent,
         sequence_id=sequence_id,
-        defaults={
-            'localization': localization,
-            'external_coincidence': external_coincidence,
-            'details': event_details,
-            'event_subtype': alert_data.get('alert_type'),
-            'ingestor_source': ingestor_source
-        }
+        defaults=sequence_defaults
     )
 
     if es_created and localization is None:

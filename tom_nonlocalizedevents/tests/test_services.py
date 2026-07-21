@@ -1,6 +1,7 @@
 """Tests for the services package (event_ingest + gracedb)."""
 import importlib
 from io import StringIO
+from uuid import uuid4
 from unittest import mock
 
 import responses
@@ -96,6 +97,20 @@ class TestIngestIgwnEventFromData(TestCase):
         ingest_igwn_event_from_data(alert)
 
         self.assertEqual(mock_create.call_args.kwargs['skymap_bytes'], b'FAKE-FITS-BYTES')
+
+
+class TestHermesMessageIdStorage(TestCase):
+    def test_uuid_less_update_preserves_stored_hermes_message_id(self):
+        """A later ingestion without a message UUID (e.g. a GraceDB back-fill
+        refreshing a stream-ingested sequence) must not null out the stored one."""
+        message_uuid = uuid4()
+        alert = {'superevent_id': 'S250722c', 'alert_type': 'INITIAL', 'sequence_num': 1,
+                 'event': {'pipeline': 'gstlal'}}
+        ingest_igwn_event_from_data(dict(alert), hermes_message_id=message_uuid)
+
+        _, sequence = ingest_igwn_event_from_data(dict(alert), ingestor_source='gracedb')
+
+        self.assertEqual(sequence.hermes_message_id, message_uuid)
 
 
 class TestBuildGracedbAlertData(TestCase):

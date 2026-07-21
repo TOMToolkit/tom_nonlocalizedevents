@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Any
 
 from django.conf import settings
@@ -10,6 +11,27 @@ from tom_nonlocalizedevents.models import EventSequence, NonLocalizedEvent
 from tom_nonlocalizedevents.services.event_ingest import ingest_igwn_event_from_data
 
 logger = logging.getLogger(__name__)
+
+
+def _hermes_message_id(metadata: Metadata | None) -> uuid.UUID | None:
+    """Extract the hop '_id' kafka header, which Hermes uses as its message UUID.
+
+    Hermes's message pages live at HERMES_API_URL/message/<uuid>, keyed by the
+    UUID hop-client attaches to every published message as the '_id' header.
+    Returns None when the metadata or header is absent or unparseable.
+    """
+    headers = getattr(metadata, 'headers', None) or []
+    if isinstance(headers, dict):
+        headers = headers.items()
+    for key, value in headers:
+        if key == '_id':
+            try:
+                if isinstance(value, bytes) and len(value) == 16:
+                    return uuid.UUID(bytes=value)
+                return uuid.UUID(value.decode() if isinstance(value, bytes) else value)
+            except (AttributeError, TypeError, ValueError):
+                return None
+    return None
 
 
 def handle_igwn_message(message: JSONBlob, metadata: Metadata | None = None,
@@ -50,4 +72,5 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata | None = None,
 
     # All ingestion logic (retractions, embedded skymaps, sequence numbering
     # and creation) lives in the source-independent service layer.
-    return ingest_igwn_event_from_data(alert, ingestor_source='hop')
+    return ingest_igwn_event_from_data(alert, ingestor_source='hop',
+                                       hermes_message_id=_hermes_message_id(metadata))

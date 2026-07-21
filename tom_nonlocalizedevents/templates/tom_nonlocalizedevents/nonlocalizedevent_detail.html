@@ -76,6 +76,7 @@
               <th>Area 90% (deg&sup2;)</th>
               <th>Distance (Mpc)</th>
               <th>Skymap</th>
+              <th>Hermes</th>
             </tr>
           </thead>
           <tbody>
@@ -97,6 +98,11 @@
               <td>
                 {% if sequence.localization.skymap_url %}
                   <a href="{{ sequence.localization.skymap_url }}" target="_blank" rel="noopener">FITS</a>
+                {% endif %}
+              </td>
+              <td>
+                {% if sequence.hermes_url %}
+                  <a href="{{ sequence.hermes_url }}" target="_blank" rel="noopener">message</a>
                 {% endif %}
               </td>
             </tr>
