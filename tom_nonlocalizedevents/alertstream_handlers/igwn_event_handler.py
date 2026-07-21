@@ -1,16 +1,39 @@
 import logging
+from typing import Any
 
 from django.conf import settings
 
 from hop.io import Metadata
 from hop.models import JSONBlob
 
+from tom_nonlocalizedevents.models import EventSequence, NonLocalizedEvent
 from tom_nonlocalizedevents.services.event_ingest import ingest_igwn_event_from_data
 
 logger = logging.getLogger(__name__)
 
 
-def handle_igwn_message(message: JSONBlob, metadata: Metadata):
+def handle_igwn_message(message: JSONBlob, metadata: Metadata | None = None,
+                        **kwargs: Any) -> tuple[NonLocalizedEvent | None, EventSequence | None]:
+    """Ingest an IGWN GWAlert from the hop/Kafka stream.
+
+    Unwraps the hop message and hands the alert to the source-independent
+    ingestion service; the only logic living here is what is stream-specific
+    (message unwrapping and the test-alert gate).
+
+    Args:
+        message: The hop message; its ``content`` holds the GWAlert dict.
+        metadata: Stream metadata (unused). Named rather than positional-only
+            because released tom_alertstreams passes it positionally while the
+            2.0-era convention passes it by keyword.
+        **kwargs: Absorbs the extra context the tom_alertstreams 2.0-era
+            unified convention passes to every handler (``alert_stream=``,
+            ``topic=``, ...).
+
+    Returns:
+        The (nonlocalizedevent, event_sequence) tuple from the ingestion
+        service; (nonlocalizedevent, None) for retractions; (None, None) for
+        malformed alerts or test alerts skipped per SAVE_TEST_ALERTS.
+    """
     # hop-client packed the alert as a single-element list through 0.6; newer
     # releases deliver the alert dict directly. Customers run both, so
     # tolerate both shapes (issue #77).

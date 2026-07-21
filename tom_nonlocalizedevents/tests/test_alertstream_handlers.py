@@ -36,6 +36,18 @@ class TestHandleIgwnMessage(TestCase):
         self.assertEqual(nle.event_id, 'S250720a')
         self.assertEqual(seq.sequence_id, 1)
 
+    def test_tom_alertstreams_2_calling_convention(self):
+        """The 2.0-era unified convention calls handler(alert, alert_stream=, topic=,
+        metadata=); the extra keywords must be absorbed, not TypeError."""
+        message = SimpleNamespace(content=dict(ALERT))
+
+        nle, seq = handle_igwn_message(
+            message, alert_stream=object(), topic='igwn.gwalert', metadata=None
+        )
+
+        self.assertEqual(nle.event_id, 'S250720a')
+        self.assertIsNotNone(seq)
+
     @override_settings(SAVE_TEST_ALERTS=False)
     def test_test_alerts_skipped_when_configured_off(self):
         message = SimpleNamespace(content=dict(ALERT, superevent_id='MS250720b'))
