@@ -6,9 +6,29 @@ from django.test import RequestFactory, TestCase
 from django.urls import resolve, reverse
 from rest_framework.test import APITestCase
 
+from tom_targets.models import Target
+
+from tom_nonlocalizedevents.healpix_utils import SaEventCandidate, SaSkymap, SaSkymapTile, SaTarget
+from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, SkymapTile
 from tom_nonlocalizedevents.tests.factories import (NonLocalizedEventFactory, EventLocalizationFactory,
                                                     EventSequenceFactory)
 from tom_nonlocalizedevents.views import NonLocalizedEventDetailView
+
+
+class TestSaTableNames(TestCase):
+    def test_satarget_tablename_matches_the_distance_owning_model(self):
+        """Regression: the hardcoded 'tom_targets_target' name broke silently when
+        TOM Toolkit 3 split targets into tom_targets_basetarget."""
+        self.assertEqual(SaTarget.__tablename__,
+                         Target._meta.get_field('distance').model._meta.db_table)
+        self.assertEqual(SaTarget.__tablename__, 'tom_targets_basetarget')
+
+    def test_own_table_mappings_match_the_django_models(self):
+        """The plugin-owned SA mappings hardcode names that are frozen by contract
+        (customer raw SQL) -- assert they stay in step with the Django models."""
+        self.assertEqual(SaSkymap.__tablename__, EventLocalization._meta.db_table)
+        self.assertEqual(SaSkymapTile.__tablename__, SkymapTile._meta.db_table)
+        self.assertEqual(SaEventCandidate.__tablename__, EventCandidate._meta.db_table)
 
 
 class NonLocalizedEventAPITestCase(APITestCase):

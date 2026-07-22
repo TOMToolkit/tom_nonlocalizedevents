@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session, declarative_base, relationship
 
 from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization,
                                            NonLocalizedEvent, SkymapTile)
+from tom_targets.models import Target
 
 
 logger = logging.getLogger(__name__)
@@ -214,7 +215,9 @@ class SaSkymapTile(Base):
 
 
 class SaTarget(Base):
-    __tablename__ = 'tom_targets_target'
+    # Derive the table from the model that OWNS the distance fields rather than
+    # hardcoding it: it was 'tom_targets_target'
+    __tablename__ = Target._meta.get_field('distance').model._meta.db_table
     id = sa.Column(sa.Integer, primary_key=True)
     distance = sa.Column(sa.Float, nullable=True)
     distance_err = sa.Column(sa.Float, nullable=True)
