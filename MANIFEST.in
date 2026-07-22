@@ -1,4 +1,0 @@
-include LICENSE
-include README.md
-recursive-include tom_nonlocalizedevents/static *
-recursive-include tom_nonlocalizedevents/templates *

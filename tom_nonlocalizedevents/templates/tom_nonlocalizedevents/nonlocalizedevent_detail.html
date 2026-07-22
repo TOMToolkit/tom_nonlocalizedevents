@@ -1,0 +1,119 @@
+{% extends 'tom_common/base.html' %}
+
+{% block title %}Event {{ nonlocalizedevent.event_id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <h2>
+      {{ nonlocalizedevent.event_id }}
+      <span class="badge
+        {% if nonlocalizedevent.state == 'ACTIVE' %}bg-success
+        {% elif nonlocalizedevent.state == 'RETRACTED' %}bg-danger
+        {% else %}bg-secondary{% endif %}
+      ">{{ nonlocalizedevent.get_state_display }}</span>
+    </h2>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-md-4">
+    {# Core attributes of the NonLocalizedEvent itself. #}
+    <div class="card mb-3">
+      <div class="card-header">Event Details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Event Type</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.get_event_type_display }}</dd>
+          <dt class="col-sm-5">Created</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.created|date:"Y-m-d H:i:s" }} UTC</dd>
+          <dt class="col-sm-5">Last Modified</dt>
+          <dd class="col-sm-7">{{ nonlocalizedevent.modified|date:"Y-m-d H:i:s" }} UTC</dd>
+        </dl>
+      </div>
+    </div>
+
+    {# Links to external services; GraceDB/Treasure Map only apply to GW events. #}
+    <div class="card mb-3">
+      <div class="card-header">External Links</div>
+      <ul class="list-group list-group-flush">
+        {% if nonlocalizedevent.event_type == 'GW' %}
+          <li class="list-group-item">
+            <a href="{{ nonlocalizedevent.gracedb_url }}" target="_blank" rel="noopener">GraceDB</a>
+          </li>
+          <li class="list-group-item">
+            <a href="{{ nonlocalizedevent.treasuremap_url }}" target="_blank" rel="noopener">Treasure Map</a>
+          </li>
+        {% endif %}
+        <li class="list-group-item">
+          <a href="{{ nonlocalizedevent.hermes_url }}" target="_blank" rel="noopener">Hermes</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    {% comment %}
+      One row per EventSequence (alert update), in sequence order; the alert
+      payload lives in the details JSON and the sky-localization numbers come
+      from the sequence's EventLocalization. ({# #} comments are single-line
+      only -- a multi-line one renders literally.)
+    {% endcomment %}
+    <div class="card">
+      <div class="card-header">Sequences</div>
+      <div class="card-body table-responsive">
+        {% if sequences %}
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Time</th>
+              <th>FAR (Hz)</th>
+              <th>Significant</th>
+              <th>Instruments</th>
+              <th>Area 50% (deg&sup2;)</th>
+              <th>Area 90% (deg&sup2;)</th>
+              <th>Distance (Mpc)</th>
+              <th>Skymap</th>
+              <th>Hermes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sequence in sequences %}
+            <tr>
+              <td>{{ sequence.sequence_id }}</td>
+              <td>{{ sequence.event_subtype }}</td>
+              <td>{{ sequence.details.time|default:"" }}</td>
+              <td>{{ sequence.details.far|stringformat:".2e"|default:"" }}</td>
+              <td>{{ sequence.details.significant|yesno:"yes,no," }}</td>
+              <td>{{ sequence.details.instruments|join:", " }}</td>
+              <td>{{ sequence.localization.area_50|floatformat:1|default:"" }}</td>
+              <td>{{ sequence.localization.area_90|floatformat:1|default:"" }}</td>
+              <td>
+                {% if sequence.localization %}
+                  {{ sequence.localization.distance_mean|floatformat:0 }} &plusmn; {{ sequence.localization.distance_std|floatformat:0 }}
+                {% endif %}
+              </td>
+              <td>
+                {% if sequence.localization.skymap_url %}
+                  <a href="{{ sequence.localization.skymap_url }}" target="_blank" rel="noopener">FITS</a>
+                {% endif %}
+              </td>
+              <td>
+                {% if sequence.hermes_url %}
+                  <a href="{{ sequence.hermes_url }}" target="_blank" rel="noopener">message</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">No sequences have been ingested for this event.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

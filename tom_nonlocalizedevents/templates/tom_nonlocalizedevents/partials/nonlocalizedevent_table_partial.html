@@ -1,0 +1,15 @@
+{# tom_nonlocalizedevents/partials/nonlocalizedevent_table_partial.html #}
+{% load render_table from django_tables2 %}
+
+{% render_table table %}
+
+{% if not table.data %}
+    <div class="alert alert-info mt-3">
+        {% if empty_database %}
+            No events have been created. Ingest an event from GraceDB with the button above,
+            via the REST API, or with the readstreams management command.
+        {% else %}
+            No events match those filters.
+        {% endif %}
+    </div>
+{% endif %}

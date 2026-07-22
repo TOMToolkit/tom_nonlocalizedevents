@@ -1,0 +1,23 @@
+{% extends 'tom_common/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Ingest Event from GraceDB{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>Ingest Event from GraceDB</h2>
+  </div>
+  <div class="card-body">
+    <p>
+      Enter the GraceDB identifier for a non-localized event (e.g., a superevent) to fetch its data
+      and create or update the corresponding event in this TOM.
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      <button type="submit" class="btn btn-primary">Ingest Event</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

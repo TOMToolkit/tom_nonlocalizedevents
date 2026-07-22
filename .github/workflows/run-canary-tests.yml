@@ -20,18 +20,17 @@ jobs:
         ports:
           - 5432:5432
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
-        python-version: '3.x'
+        python-version: '3.12'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install "poetry>=2.0,<3.0"
         poetry install --with test
-        poetry run python manage.py collectstatic --noinput
     - name: Run Canary Tests
-      run: poetry run python manage.py test --tag=canary
+      run: poetry run python tom_nonlocalizedevents/tests/run_canary_tests.py
       env:
         DB_USER: postgres
         DB_PASS: postgres

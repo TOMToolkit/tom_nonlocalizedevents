@@ -13,8 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     services:
       postgres:
         image: postgres
@@ -30,8 +29,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -39,9 +38,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "poetry>=2.0,<3.0"
           poetry install --with test
-          poetry run python manage.py collectstatic --noinput
       - name: Run tests
-        run: poetry run python manage.py test --exclude-tag=canary
+        run: poetry run python tom_nonlocalizedevents/tests/run_tests.py
         env:
           DB_USER: postgres
           DB_PASS: postgres
@@ -49,13 +47,15 @@ jobs:
           DB_PORT: 5432
 
   create_release:
+    # the draft release must never be created from a red tagged commit
+    needs: run_tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v4
+    - name: Create draft release
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        name: tom-nonlocalizedevents ${{ github.ref_name }}
         draft: true
