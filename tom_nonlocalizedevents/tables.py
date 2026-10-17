@@ -1,12 +1,10 @@
 """django-tables2 table for the event list page, built on TOM Toolkit's HTMXTable.
 
 Columns and their presentation follow SAGUARO's event list pages (minus their
-site-specific survey columns), and the formatting helpers are ports of their
-template filters, so the two TOMs render science quantities identically.
+site-specific survey columns); the formatting helpers live in
+event_summary.header so the list and the event header render science
+quantities identically.
 """
-import math
-from typing import Any
-
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -15,11 +13,12 @@ import django_tables2 as tables
 
 from tom_common.htmx_table import HTMXTable
 
-from tom_nonlocalizedevents.models import EventLocalization, EventSequence, NonLocalizedEvent
+from tom_nonlocalizedevents.event_summary.header import (HZ_TO_INVERSE_YEARS, format_distance, format_inverse_far,
+                                                         format_percent, most_likely_classification)
+from tom_nonlocalizedevents.models import EventSequence, NonLocalizedEvent
 
-# SAGUARO's conversion constant: false-alarm rate in Hz -> inverse FAR in years
-HZ_TO_INVERSE_YEARS = 3.168808781402895e-08
-SI_PREFIXES = ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 'R', 'Q']
+__all__ = ['HZ_TO_INVERSE_YEARS', 'NonLocalizedEventTable', 'GravitationalWaveEventTable', 'GammaRayBurstEventTable',
+           'NeutrinoEventTable', 'XRayTransientEventTable', 'UnknownEventTable', 'latest_sequence']
 
 
 def latest_sequence(event: NonLocalizedEvent) -> EventSequence | None:
@@ -30,75 +29,6 @@ def latest_sequence(event: NonLocalizedEvent) -> EventSequence | None:
     """
     sequences = list(event.sequences.all())
     return sequences[-1] if sequences else None
-
-
-def format_inverse_far(far: float | None) -> str:
-    """Format a false-alarm rate (Hz) as a human-readable inverse FAR, SAGUARO-style.
-
-    Years with SI prefixes above one year (kyr, Myr, ...), days below one year.
-    Significant CBC alerts have 1/FAR > 0.5 yr.
-    """
-    if not far:
-        return ''
-    inv_far = HZ_TO_INVERSE_YEARS / far
-    if inv_far > 1.:
-        magnitude = int(math.log10(inv_far) / 3.)
-        if magnitude < len(SI_PREFIXES):
-            inv_far *= 1000. ** -magnitude
-            unit = SI_PREFIXES[magnitude] + 'yr'
-        else:
-            unit = 'yr'
-    else:
-        inv_far *= 365.25
-        unit = 'd'
-    if inv_far >= 1000.:
-        return f'{inv_far:.0e} {unit}'
-    elif inv_far > 10.:
-        return f'{inv_far:.0f} {unit}'
-    return f'{inv_far:.1f} {unit}'
-
-
-def format_distance(localization: EventLocalization | None) -> str:
-    """Format a localization's luminosity distance as 'mean ± std', SAGUARO-style."""
-    if localization is None or not localization.distance_mean:
-        return ''
-    distance_mean = localization.distance_mean
-    distance_std = localization.distance_std
-    if distance_mean < 1000.:
-        unit = 'Mpc'
-    else:
-        distance_mean /= 1000.
-        distance_std /= 1000.
-        unit = 'Gpc'
-    if distance_mean > 10.:
-        return f'{distance_mean:.0f} ± {distance_std:.0f} {unit}'
-    return f'{distance_mean:.1f} ± {distance_std:.1f} {unit}'
-
-
-def most_likely_classification(details: dict | None) -> str:
-    """Extract the most likely classification from a sequence's details, SAGUARO-style.
-
-    SSM searches report as SSM; CBC alerts report the max-probability entry of
-    the classification dict; everything else (bursts) reports its group.
-    """
-    if not details:
-        return ''
-    if details.get('search') == 'SSM':
-        return 'SSM'
-    if details.get('group') == 'CBC':
-        classification = details.get('classification') or {}
-        if classification:
-            return max(classification, key=classification.get)
-        return ''
-    return details.get('group') or ''
-
-
-def _percent(value: Any) -> str:
-    """Render a 0-1 probability as a whole percent; empty string when absent."""
-    try:
-        return f'{float(value):.0%}'
-    except (TypeError, ValueError):
-        return ''
 
 
 def _row_is_significant(event: NonLocalizedEvent) -> bool:
@@ -171,11 +101,12 @@ class NonLocalizedEventTable(HTMXTable):
 
     def render_has_ns(self, record: NonLocalizedEvent) -> str:
         sequence = latest_sequence(record)
-        return _percent(((sequence.details or {}).get('properties') or {}).get('HasNS') if sequence else None)
+        return format_percent(((sequence.details or {}).get('properties') or {}).get('HasNS') if sequence else None)
 
     def render_has_remnant(self, record: NonLocalizedEvent) -> str:
         sequence = latest_sequence(record)
-        return _percent(((sequence.details or {}).get('properties') or {}).get('HasRemnant') if sequence else None)
+        properties = (sequence.details or {}).get('properties') or {} if sequence else {}
+        return format_percent(properties.get('HasRemnant'))
 
     def render_external_links(self, record: NonLocalizedEvent) -> str:
         """Favicon links to external services; GraceDB/Treasure Map only apply to GW events."""
