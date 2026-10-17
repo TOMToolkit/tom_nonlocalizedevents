@@ -1,13 +1,14 @@
+"""post_save handlers that keep CredibleRegion rows current as candidates and localizations arrive."""
 from functools import partial
+import logging
 
-from django.dispatch import receiver
-from django.db.models.signals import post_save
 from django.db import transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization
-from tom_nonlocalizedevents.healpix_utils import update_all_credible_region_percents_for_candidates
+from tom_nonlocalizedevents.services.credible_regions import update_all_credible_region_percents_for_candidates
 
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +17,7 @@ def cb_post_save_event_candidate(sender, instance, created, **kwargs):
     # Anytime an EventCandidate is created, create and save its probability for different levels of credible region
     # for each localization we have for that event
     if created:
-        logger.warning(f"Just created and saved new Event Candidate with healpix {instance.healpix}")
+        logger.info(f"Just created and saved new Event Candidate with healpix {instance.healpix}")
         localizations = instance.nonlocalizedevent.localizations.all()
         for localization in localizations:
             update_all_credible_region_percents_for_candidates(localization, [instance.pk])

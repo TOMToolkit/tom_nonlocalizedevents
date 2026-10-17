@@ -1,15 +1,26 @@
-''' This set of methods supports generating and querying healpix MOC maps for GW events,
+""" This set of methods supports generating and querying healpix MOC maps for GW events,
     using healpix_alchemy and model mappings with sql_alchemy queries.
-'''
+
+    Since 1.1.0 the credible-region computation lives in ``services.credible_regions`` (Django ORM) and
+    ``update_all_credible_region_percents_for_candidates`` here calls it. The SQLAlchemy engine and the
+    mapped classes (``sa_engine``, ``Base``, ``SaSkymap``, ``SaSkymapTile``, ``SaTarget``,
+    ``SaEventCandidate``) are still importable for TOMs that query the tiles themselves, but they are
+    deprecated, built on first access, and removed in 2.0.0 with the tom_regions refactor.
+"""
+from __future__ import annotations
+
 from copy import deepcopy
 from datetime import timezone
+from functools import lru_cache
 import hashlib
 from io import BytesIO
-import json
 import logging
 import os
 import sys
+from types import SimpleNamespace
+from typing import Any
 import uuid
+import warnings
 
 from django.conf import settings
 from django.db import transaction
@@ -25,17 +36,16 @@ from ligo.skymap import distance
 from mocpy import MOC
 import numpy as np
 import sqlalchemy as sa
-from sqlalchemy.orm import Session, declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship
 
-from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization,
-                                           NonLocalizedEvent, SkymapTile)
+from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent, SkymapTile
 from tom_targets.models import Target
 
 
 logger = logging.getLogger(__name__)
 
 #
-# SQLAlchemy Engine Configuration
+# SQLAlchemy Engine Configuration (deprecated; see _sqlalchemy_legacy)
 #  see https://docs.sqlalchemy.org/en/20/core/engines.html#sqlalchemy.create_engine
 
 SA_DB_CONNECTION_URL = os.getenv(
@@ -44,22 +54,94 @@ SA_DB_CONNECTION_URL = os.getenv(
      f"@{settings.DATABASES['default']['HOST']}:{settings.DATABASES['default']['PORT']}"
      f"/{settings.DATABASES['default']['NAME']}"))
 POOL_RECYCLE = 4 * 60 * 60
-POOL_SIZE = os.getenv('POOL_SIZE', 5)
-MAX_OVERFLOW = os.getenv('MAX_OVERFLOW', 10)
+POOL_SIZE = int(os.getenv('POOL_SIZE', 5))
+MAX_OVERFLOW = int(os.getenv('MAX_OVERFLOW', 10))
 
-CREDIBLE_REGION_PROBABILITIES = sorted(json.loads(os.getenv(
-    'CREDIBLE_REGION_PROBABILITIES', '[0.25, 0.5, 0.75, 0.9, 0.95]')), reverse=True)
+# tom_regions refactor: everything from here to __getattr__ (the SQLAlchemy constants, engine and mapped classes)
+# is deleted in 2.0.0, together with the healpix-alchemy, SQLAlchemy and psycopg2-binary dependencies.
+# The names served lazily by __getattr__ below, with the replacement each deprecation warning names.
+_DEPRECATED_SQLALCHEMY_NAMES = {
+    'sa_engine': 'the Django database connection',
+    'Base': 'nothing (the SQLAlchemy mappings are removed)',
+    'SaSkymap': 'tom_nonlocalizedevents.models.EventLocalization',
+    'SaSkymapTile': 'services.credible_regions.tile_densities_at_points and credible_level_thresholds',
+    'SaTarget': 'tom_targets.models.Target',
+    'SaEventCandidate': 'tom_nonlocalizedevents.models.EventCandidate',
+}
+_deprecation_logged: set[str] = set()
 
-Base = declarative_base()
-sa_engine = sa.create_engine(
-    SA_DB_CONNECTION_URL,
-    pool_recycle=POOL_RECYCLE,
-    pool_size=POOL_SIZE,
-    max_overflow=MAX_OVERFLOW
-)
+
+@lru_cache(maxsize=None)
+def _sqlalchemy_legacy() -> SimpleNamespace:
+    """Build the deprecated SQLAlchemy engine and the mapped classes on first use.
+
+    Built lazily so that importing this module no longer creates a connection pool to a database the plugin
+    itself does not query any more; only a TOM that still imports ``sa_engine`` or a mapped class pays for it.
+    """
+    Base = declarative_base()
+
+    # healpix_alchemy models pointing to django ORM models, for building a sql alchemy query
+    class SaSkymap(Base):
+        __tablename__ = EventLocalization._meta.db_table
+        id = sa.Column(sa.Integer, primary_key=True)
+        tiles = relationship(lambda: SaSkymapTile)
+
+    class SaSkymapTile(Base):
+        __tablename__ = SkymapTile._meta.db_table
+        id = sa.Column(sa.Integer, primary_key=True)
+        localization_id = sa.Column(sa.ForeignKey(SaSkymap.id), primary_key=True)
+        tile = sa.Column(Tile, primary_key=True, index=True)
+        probdensity = sa.Column(sa.Float, nullable=False)
+        distance_mean = sa.Column(sa.Float, nullable=False)
+        distance_std = sa.Column(sa.Float, nullable=False)
+
+    class SaTarget(Base):
+        # Derive the table from the model that OWNS the distance fields rather than
+        # hardcoding it: it was 'tom_targets_target'
+        __tablename__ = Target._meta.get_field('distance').model._meta.db_table
+        id = sa.Column(sa.Integer, primary_key=True)
+        distance = sa.Column(sa.Float, nullable=True)
+        distance_err = sa.Column(sa.Float, nullable=True)
+
+    class SaEventCandidate(Base):
+        __tablename__ = EventCandidate._meta.db_table
+        id = sa.Column(sa.Integer, primary_key=True)
+        target_id = sa.Column(sa.ForeignKey(SaTarget.id), primary_key=True)
+        healpix = sa.Column(Point, index=True, nullable=False)
+
+    sa_engine = sa.create_engine(
+        SA_DB_CONNECTION_URL,
+        pool_recycle=POOL_RECYCLE,
+        pool_size=POOL_SIZE,
+        max_overflow=MAX_OVERFLOW
+    )
+    return SimpleNamespace(Base=Base, sa_engine=sa_engine, SaSkymap=SaSkymap, SaSkymapTile=SaSkymapTile,
+                           SaTarget=SaTarget, SaEventCandidate=SaEventCandidate)
+
+
+def __getattr__(name: str) -> Any:
+    """Serve the deprecated SQLAlchemy names and the current credible-region probabilities.
+
+    ``CREDIBLE_REGION_PROBABILITIES`` is computed on each access so it follows the settings (the 1.0.0
+    module constant read only the environment, once, at import).
+    """
+    if name == 'CREDIBLE_REGION_PROBABILITIES':
+        from tom_nonlocalizedevents.services.credible_regions import credible_region_probabilities
+        return credible_region_probabilities()
+    if name in _DEPRECATED_SQLALCHEMY_NAMES:
+        message = (f'tom_nonlocalizedevents.healpix_utils.{name} is deprecated and is removed in '
+                   f'tom_nonlocalizedevents 2.0.0; use {_DEPRECATED_SQLALCHEMY_NAMES[name]} instead')
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        # DeprecationWarning is silent outside __main__ by default; log once per name so deployments notice
+        if name not in _deprecation_logged:
+            _deprecation_logged.add(name)
+            logger.warning(message)
+        return getattr(_sqlalchemy_legacy(), name)
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 
 def uniq_to_bigintrange(value):
+    # tom_regions refactor: replaced by healpix_django.encoding.uniq_to_range; SAGUARO imports this name
     level, ipix = ah.uniq_to_level_ipix(value)
     shift = 2 * (LEVEL - level)
     return (ipix << shift, (ipix + 1) << shift)
@@ -70,6 +152,7 @@ def sequence_to_bigintrange(sequence):
 
 
 def tiles_from_moc(moc):
+    # tom_regions refactor: MOC-to-range conversion comes from healpix_django.encoding
     return (f'[{lo},{hi})' for lo, hi in moc.to_depth29_ranges)
 
 
@@ -179,6 +262,9 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
                 if not is_new:
                     # This is added to protect against race conditions where the localization has already been added
                     return localization
+                # tom_regions refactor: one INSERT per tile (about 22k per localization); the writes move to a
+                # bulk-insert helper in services.credible_regions, which SAGUARO (writing rows directly today)
+                # is pointed at by the 2.0.0 guide
                 for i, row in enumerate(skymap):
                     # This is necessary to make sure we don't get an underflow error in postgres
                     # when operating with the probdensity float field
@@ -197,121 +283,26 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
     return localization
 
 
-# healpix_alchemy models pointing to django ORM models, for building a sql alchemy query
-class SaSkymap(Base):
-    __tablename__ = 'tom_nonlocalizedevents_eventlocalization'
-    id = sa.Column(sa.Integer, primary_key=True)
-    tiles = relationship(lambda: SaSkymapTile)
-
-
-class SaSkymapTile(Base):
-    __tablename__ = 'tom_nonlocalizedevents_skymaptile'
-    id = sa.Column(sa.Integer, primary_key=True)
-    localization_id = sa.Column(sa.ForeignKey(SaSkymap.id), primary_key=True)
-    tile = sa.Column(Tile, primary_key=True, index=True)
-    probdensity = sa.Column(sa.Float, nullable=False)
-    distance_mean = sa.Column(sa.Float, nullable=False)
-    distance_std = sa.Column(sa.Float, nullable=False)
-
-
-class SaTarget(Base):
-    # Derive the table from the model that OWNS the distance fields rather than
-    # hardcoding it: it was 'tom_targets_target'
-    __tablename__ = Target._meta.get_field('distance').model._meta.db_table
-    id = sa.Column(sa.Integer, primary_key=True)
-    distance = sa.Column(sa.Float, nullable=True)
-    distance_err = sa.Column(sa.Float, nullable=True)
-
-
-class SaEventCandidate(Base):
-    __tablename__ = 'tom_nonlocalizedevents_eventcandidate'
-    id = sa.Column(sa.Integer, primary_key=True)
-    target_id = sa.Column(sa.ForeignKey(SaTarget.id), primary_key=True)
-    healpix = sa.Column(Point, index=True, nullable=False)
-
-
-def update_all_credible_region_percents_for_candidates(eventlocalization, event_candidate_ids=None):
+def update_all_credible_region_percents_for_candidates(eventlocalization: EventLocalization,
+                                                       event_candidate_ids: list[int] | None = None) -> None:
     ''' This helper function runs through the defined set of discrete credible region probabilities
         and creates or updates the probability of a credible region for each of the event candidates
-        that fall within the event localization's credible region of that priority
+        that fall within the event localization's credible region of that priority.
+
+        Kept here for callers that import it from this module; the computation is
+        ``services.credible_regions.update_all_credible_region_percents_for_candidates``.
     '''
-    if not event_candidate_ids:
-        event_candidate_ids = list(eventlocalization.nonlocalizedevent.candidates.values_list('pk', flat=True))
-    for probability in CREDIBLE_REGION_PROBABILITIES:
-        update_credible_region_percent_for_candidates(eventlocalization, probability, event_candidate_ids)
+    # Imported here, not at module level: the services package imports this module (event_ingest uses
+    # create_localization_for_skymap), so a module-level import would be circular.
+    from tom_nonlocalizedevents.services import credible_regions
+    credible_regions.update_all_credible_region_percents_for_candidates(eventlocalization, event_candidate_ids)
 
 
-def update_credible_region_percent_for_candidates(eventlocalization, prob, event_candidate_ids=None):
+def update_credible_region_percent_for_candidates(eventlocalization: EventLocalization, prob: float,
+                                                  event_candidate_ids: list[int] | None = None) -> None:
     ''' This function creates a credible region linkage with probability prob for each of the event candidate
         ids supplied if they fall within that prob for the event location specified.
     '''
-    if not event_candidate_ids:
-        event_candidate_ids = list(eventlocalization.nonlocalizedevent.candidates.values_list('pk', flat=True))
-
-    with Session(sa_engine) as session:
-
-        cum_prob = sa.func.sum(
-            SaSkymapTile.probdensity * SaSkymapTile.tile.area
-        ).over(
-            order_by=SaSkymapTile.probdensity.desc()
-        ).label(
-            'cum_prob'
-        )
-
-        subquery = sa.select(
-            SaSkymapTile.probdensity,
-            cum_prob
-        ).filter(
-            SaSkymapTile.localization_id == eventlocalization.id
-        ).subquery()
-
-        min_probdensity = sa.select(
-            sa.func.min(subquery.columns.probdensity)
-        ).filter(
-            subquery.columns.cum_prob <= prob
-        ).scalar_subquery()
-
-        query = sa.select(
-            SaEventCandidate.id
-        ).filter(
-            SaEventCandidate.id.in_(event_candidate_ids),
-            SaSkymapTile.localization_id == eventlocalization.id,
-            SaSkymapTile.tile.contains(SaEventCandidate.healpix),
-            SaSkymapTile.probdensity >= min_probdensity
-        )
-
-        results = session.execute(query)
-
-        for sa_event_candidate_id in results:
-            CredibleRegion.objects.update_or_create(
-                candidate=EventCandidate.objects.get(id=sa_event_candidate_id[0]),
-                localization=eventlocalization,
-                defaults={
-                    'smallest_percent': int(prob * 100.0)
-                }
-            )
-
-# def point_in_range_django(eventlocalization, prob):
-# This code is a beginning attempt to translate the healpix_alchemy query from sql_alchemy to django ORM
-# It is non-functional and needs more work to get right.
-#     event_candidate_ids = list(eventlocalization.nonlocalizedevent.candidates.values_list('pk', flat=True))
-
-#     SkymapTile.objects.order_by('-probdensity').aggregate(cum_prob=Sum(F('probdensity') * F('tile__area')))
-
-#     cum_prob = SkymapTile.objects.order_by('-probdensity').alias(cum_prob=Sum(F('probdensity') *
-#                F('tile__area'))).annotate(cum_prob=F('cum_prob'),
-#     )
-#     min_probdensity = SkymapTile.objects.order_by('-probdensity').alias(
-#         cum_prob=Sum(F('probdensity') * F('tile__area')), min_probdensity=Min(F('probdensity'))).annotate(
-#         cum_prob=F('cum_prob'), min_probdensity=F('min_probdensity')
-#     ).filter(
-#         localization__id=eventlocalization.id,
-#         cum_prob__lte=prob,
-#         probdensity__gte=min_probdensity,
-#         tile__contains=
-#         localization__nonlocalizedevent__candidates
-#     )
-#     candidates = EventCandidate.objects.filter(
-#         nonlocalizedevent=eventlocalization.nonlocalizedevent,
-#         eventlocalization__tiles__contains(healpix)
-#     ).values('id')
+    from tom_nonlocalizedevents.services import credible_regions
+    credible_regions.update_all_credible_region_percents_for_candidates(eventlocalization, event_candidate_ids,
+                                                                        probabilities=[prob])

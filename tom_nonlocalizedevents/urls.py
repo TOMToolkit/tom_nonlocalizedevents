@@ -22,6 +22,7 @@ urlpatterns = [
     # which matches any single path segment
     path('ingest-gracedb/', views.IngestFromGraceDBView.as_view(), name='ingest-gracedb'),
     path('tab/<str:event_type_slug>/', views.EventTypeTabView.as_view(), name='tab'),
+    path('localizations/<int:pk>/moc.json', views.LocalizationMOCJsonView.as_view(), name='localization-moc'),
     path('<int:pk>/', views.NonLocalizedEventDetailView.as_view(), name='detail'),
     path('<str:event_id>/', views.NonLocalizedEventDetailView.as_view(), name='event-detail'),
 ]

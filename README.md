@@ -12,8 +12,10 @@ from GraceDB, their skymaps are processed into healpix credible regions, and can
 
 ## Requirements
 
-- ``PostgreSQL`` is required to support the healpix MOC volume-map lookups
-via healpix-alchemy.
+- ``tomtoolkit`` 3.1 or later
+
+- ``PostgreSQL`` is required because the skymap tiles are stored as bigint ranges of HEALPix pixel
+indices with an SP-GiST index, and the credible-region queries use them.
 
 - ``tom-alertstreams`` is required to listen to the IGWN alert stream.
 
@@ -29,15 +31,11 @@ via healpix-alchemy.
    With TOM Toolkit 3's scaffold that looks like:
 
     ```python
-    INSTALLED_APPS = TOMTOOKIT_INSTALLED_APPS + [
+    INSTALLED_APPS = TOMTOOLKIT_INSTALLED_APPS + [
         'tom_nonlocalizedevents',
     ]
     ```
 
-    (`TOMTOOKIT_INSTALLED_APPS` is the (misspelled) literal variable name in the TOM Toolkit scaffold —
-    don't "correct" the spelling.)
-
-    
 3. Also in `settings.py`, add the settings this app reads:
 
     ```python
@@ -45,21 +43,30 @@ via healpix-alchemy.
     HERMES_API_URL = 'https://hermes.lco.global'
 
     # optional, shown with their defaults:
-    GRACEDB_API_URL = 'https://gracedb.ligo.org/api/'  # for manual GraceDB ingestion
+    GRACEDB_API_URL = 'https://gracedb.ligo.org/api/'  # for manual GraceDB Superevent ingestion
     SAVE_TEST_ALERTS = True  # ingest test events (event ids beginning with 'M')?
+    CREDIBLE_REGION_PROBABILITIES = [0.25, 0.5, 0.75, 0.9, 0.95]  # the credible regions recorded per candidate
+    ```
+
+   `CREDIBLE_REGION_PROBABILITIES` is also accepted as a JSON string so it can be read from
+   an environment variable:
+
+    ```python
+    CREDIBLE_REGION_PROBABILITIES = os.getenv('CREDIBLE_REGION_PROBABILITIES', '[0.25, 0.5, 0.75, 0.9, 0.95]')
     ```
 
 4. Run `python manage.py migrate` to create the tom_nonlocalizedevents models.
 
-5. Optionally, set environment variables to tune the SQLAlchemy engine used for the
-   healpix lookups:
+5. Deprecated (to be removed in tom_nonlocalizedevents 2.0.0): the SQLAlchemy engine
+   `tom_nonlocalizedevents.healpix_utils.sa_engine` and its mapped classes are still importable
+   for TOMs that query the skymap tiles themselves. The environment variables that
+   configure that engine apply only when something imports it:
 
     | Env variable | Description | Default |
     | ------------ | ----------- | ------- |
     | `SA_DB_CONNECTION_URL` | Postgres connection URL for SQLAlchemy | built from the Django `default` database |
     | `POOL_SIZE` | Connections kept open in the pool ([docs](https://docs.sqlalchemy.org/en/20/core/engines.html#sqlalchemy.create_engine.params.pool_size)) | 5 |
     | `MAX_OVERFLOW` | Connections allowed in pool "overflow" ([docs](https://docs.sqlalchemy.org/en/20/core/engines.html#sqlalchemy.create_engine.params.max_overflow)) | 10 |
-    | `CREDIBLE_REGION_PROBABILITIES` | JSON list of credible-region probabilities checked for each candidate | `'[0.25, 0.5, 0.75, 0.9, 0.95]'` |
 
 ## Features
 
