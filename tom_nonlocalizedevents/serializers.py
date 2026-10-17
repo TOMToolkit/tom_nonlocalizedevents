@@ -1,13 +1,11 @@
+import logging
+
 from rest_framework import serializers
-from tom_targets.models import Target
-from tom_targets.serializers import TargetSerializer
 
 from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization,
                                            EventSequence, NonLocalizedEvent, ExternalCoincidence)
-
-# from healpix_alchemy.constants import PIXEL_AREA, HPX
-# from astropy.coordinates import SkyCoord
-import logging
+from tom_targets.models import Target
+from tom_targets.serializers import TargetSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +14,7 @@ class CredibleRegionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CredibleRegion
-        fields = ['smallest_percent', 'localization', '']
+        fields = ['smallest_percent', 'localization']
 
 
 class EventCandidateSerializer(serializers.ModelSerializer):
@@ -42,7 +40,7 @@ class EventCandidateSerializer(serializers.ModelSerializer):
             # Patch requests on candidates should just be used to change viable boolean and reason and priority
             if not any([key in data for key in self.UPDATE_KEYS]):
                 raise serializers.ValidationError(
-                    f"PATCH update must contain at least one of {self.UPDATE_KEYS.join(', ')} to update"
+                    f"PATCH update must contain at least one of {', '.join(self.UPDATE_KEYS)} to update"
                 )
         else:
             if 'target' not in data and 'target_fields' not in data:
