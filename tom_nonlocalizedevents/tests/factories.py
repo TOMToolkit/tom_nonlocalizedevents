@@ -36,6 +36,8 @@ def healpix_pixel_range(order: int, ipix: int) -> tuple[int, int]:
 
     This is the encoding ``SkymapTile.tile`` stores (healpix_alchemy's): a pixel at order ``o`` covers
     ``4**(29 - o)`` consecutive order-29 pixels, starting at ``ipix`` shifted left by ``2 * (29 - o)`` bits.
+
+    tom_regions refactor: ``healpix_django.encoding`` provides this; keep the helper as the independent check.
     """
     shift = 2 * (LEVEL - order)
     return ipix << shift, (ipix + 1) << shift

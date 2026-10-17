@@ -40,7 +40,7 @@ dependencies = [
     "hop-client >=0.10,<1.0",
     "python-dateutil <3",
     "requests >=2,<3",
-    "tomtoolkit >=3,<4",
+    "tomtoolkit >=3.1,<4",
     "django-filter >=23.0,<30.0",
     "healpix-alchemy >=1.1.0,<2.0",
     "astropy-healpix >=1.0,<2.0",

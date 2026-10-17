@@ -82,6 +82,8 @@ class SyntheticLocalizationTestCase(TestCase):
 
 
 class TestEncodingHelpers(TestCase):
+    """tom_regions refactor: the healpix_alchemy references here become ``healpix_django.encoding`` ones."""
+
     def test_pixel_area_constant_equals_the_healpix_alchemy_constant_exactly(self):
         """The 1.0.0 query multiplied by healpix_alchemy's PIXEL_AREA; thresholds stay identical only if ours is the
         same double."""

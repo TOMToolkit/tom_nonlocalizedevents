@@ -57,6 +57,8 @@ POOL_RECYCLE = 4 * 60 * 60
 POOL_SIZE = int(os.getenv('POOL_SIZE', 5))
 MAX_OVERFLOW = int(os.getenv('MAX_OVERFLOW', 10))
 
+# tom_regions refactor: everything from here to __getattr__ (the SQLAlchemy constants, engine and mapped classes)
+# is deleted in 2.0.0, together with the healpix-alchemy, SQLAlchemy and psycopg2-binary dependencies.
 # The names served lazily by __getattr__ below, with the replacement each deprecation warning names.
 _DEPRECATED_SQLALCHEMY_NAMES = {
     'sa_engine': 'the Django database connection',
@@ -139,6 +141,7 @@ def __getattr__(name: str) -> Any:
 
 
 def uniq_to_bigintrange(value):
+    # tom_regions refactor: replaced by healpix_django.encoding.uniq_to_range; SAGUARO imports this name
     level, ipix = ah.uniq_to_level_ipix(value)
     shift = 2 * (LEVEL - level)
     return (ipix << shift, (ipix + 1) << shift)
@@ -149,6 +152,7 @@ def sequence_to_bigintrange(sequence):
 
 
 def tiles_from_moc(moc):
+    # tom_regions refactor: MOC-to-range conversion comes from healpix_django.encoding
     return (f'[{lo},{hi})' for lo, hi in moc.to_depth29_ranges)
 
 
@@ -258,6 +262,9 @@ def create_localization_for_skymap(nonlocalizedevent: NonLocalizedEvent, skymap_
                 if not is_new:
                     # This is added to protect against race conditions where the localization has already been added
                     return localization
+                # tom_regions refactor: one INSERT per tile (about 22k per localization); the writes move to a
+                # bulk-insert helper in services.credible_regions, which SAGUARO (writing rows directly today)
+                # is pointed at by the 2.0.0 guide
                 for i, row in enumerate(skymap):
                     # This is necessary to make sure we don't get an underflow error in postgres
                     # when operating with the probdensity float field

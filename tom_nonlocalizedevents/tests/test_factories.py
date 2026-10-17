@@ -28,7 +28,10 @@ class TestHealpixHelpers(TestCase):
         self.assertAlmostEqual(healpix_pixel_area(LEVEL) / PIXEL_AREA, 1.0, places=12)
 
     def test_pixel_range_matches_the_encoder_that_ingestion_uses(self):
-        """The helper must produce the same ranges as the 1.0.0 UNIQ-based encoder for the same pixels."""
+        """The helper must produce the same ranges as the 1.0.0 UNIQ-based encoder for the same pixels.
+
+        tom_regions refactor: compare against ``healpix_django.encoding.uniq_to_range`` instead.
+        """
         for order, ipix in [(0, 0), (0, 11), (3, 0), (3, 767), (8, 12345), (29, 7)]:
             with self.subTest(order=order, ipix=ipix):
                 self.assertEqual(healpix_pixel_range(order, ipix),
