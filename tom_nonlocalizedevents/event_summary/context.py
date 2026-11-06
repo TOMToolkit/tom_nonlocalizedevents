@@ -10,6 +10,7 @@ from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 
 from tom_nonlocalizedevents.event_summary.header import header_attributes
+from tom_nonlocalizedevents.event_summary.sky_map import sky_map_layers
 from tom_nonlocalizedevents.models import EventSequence, NonLocalizedEvent
 from tom_nonlocalizedevents.services.alerts import parse_alert
 
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # The id of the element an alert-tab click replaces; the header partial, the mixin and the tests share it.
 EVENT_HEADER_ID = 'event-header'
+# The id of the json_script element the sky map's JavaScript reads; it is replaced out of band on a tab click.
+SKY_MAP_DATA_ID = 'event-sky-map-data'
 
 
 def resolve_event(event: NonLocalizedEvent | str | None = None, **kwargs: Any) -> NonLocalizedEvent:
@@ -94,7 +97,8 @@ def event_summary_context(request: HttpRequest, event: NonLocalizedEvent,
         # subclass) answers with the update fragment
         'tab_request_path': request.path,
         'show_sky_map': sky_map,
-        'sky_map_layers': None,
+        'sky_map_data_id': SKY_MAP_DATA_ID,
+        'sky_map_layers': sky_map_layers(event, selected_sequence).model_dump(mode='json') if sky_map else None,
         'workflow_steps': [],
     }
     return context
