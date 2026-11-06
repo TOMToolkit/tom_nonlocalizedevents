@@ -1,0 +1,25 @@
+{% comment %}
+  This partial is the response to a click on an alert tab (the tabs are in partials/event_header.html). The
+  response carries up to three pieces of HTML, and htmx puts each one into the page separately:
+
+  1. The event header, re-rendered for the alert that was clicked. The tab's hx-target is the header's div,
+     so htmx replaces the current header with this one.
+
+  2. The sky map's data element (partials/event_sky_map_data.html), when present. The out-of-band swap preserves
+     the already loaded Aladin instance. The replaced data element is noticed by the sky map's JavaScript
+     (static/tom_nonlocalizedevents/js/event_sky_map.js) and the layers are redrawn with the new data.
+
+  3. The workflow step's content, included only when the view found a template for it.
+     Every page that shows the event summary is a workflow step page (Overview, Candidates, the stub,
+     or a workflow step a TOM adds). The workflow step's content is everything on that page below the
+     event summary (see the event_page_base.html template for the workflow_step_content template block).
+{% endcomment %}
+{% include 'tom_nonlocalizedevents/partials/event_header.html' %}
+{% if show_sky_map and sky_map_layers is not None %}
+  {% include 'tom_nonlocalizedevents/partials/event_sky_map_data.html' with oob=True %}
+{% endif %}
+{% if workflow_step_content_template %}
+<div id="workflow-step-content" hx-swap-oob="true">
+  {% include workflow_step_content_template %}
+</div>
+{% endif %}
