@@ -17,6 +17,7 @@ from rest_framework import permissions, viewsets
 
 from tom_common.htmx_table import HTMXTableViewMixin
 
+from tom_nonlocalizedevents.event_summary.views import EventSummaryMixin
 from tom_nonlocalizedevents.filters import (GammaRayBurstEventFilterSet, GravitationalWaveEventFilterSet,
                                             NeutrinoEventFilterSet, NonLocalizedEventFilterSet,
                                             UnknownEventFilterSet, XRayTransientEventFilterSet)
@@ -33,10 +34,11 @@ from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, Gravitationa
 
 logger = logging.getLogger(__name__)
 
-# The event-type tabs of the list page, in display order: URL slug -> (event
-# type, Table, FilterSet). 'all' (event type None) shows every event; the GW
-# tab carries the full science table/filters; the others are stubs awaiting
-# type-specific columns and filters. The index lands on the GW tab.
+# The event-type tabs of the list page, in display order
+# dict key: the tab's 'slug'. The slug is the variable part of the URL route,
+#           for example `tab/<str:event_type_slug>/` (see urls.py).
+#           The slug also names the per-event-type detail template, detail/<slug>_detail.html.
+# dict value: (event type, Table, FilterSet)
 EVENT_TYPE_TABS = {
     'all': (None, NonLocalizedEventTable, NonLocalizedEventFilterSet),
     'gw': (NonLocalizedEvent.NonLocalizedEventType.GRAVITATIONAL_WAVE,
@@ -57,8 +59,8 @@ SLUG_BY_EVENT_TYPE = {entry[0].value: slug for slug, entry in EVENT_TYPE_TABS.it
 
 # A localization's tiles never change (a new skymap is a new localization), so its credible-region MOCs can be
 # cached for as long as memory allows; a week bounds the server-side cache and a day the browser's.
-MOC_CACHE_SECONDS = 7 * 24 * 60 * 60
-MOC_CLIENT_CACHE_SECONDS = 24 * 60 * 60
+MOC_CACHE_SECONDS = 7 * 24 * 60 * 60  # 1 week
+MOC_CLIENT_CACHE_SECONDS = 24 * 60 * 60  # 1 day
 # HEALPix order the MOC JSON is degraded to by default: about 3.4 arcminute cells, a few kilobytes per region.
 MOC_DISPLAY_ORDER = 10
 
@@ -229,40 +231,28 @@ class LocalizationMOCJsonView(LoginRequiredMixin, View):
         return response
 
 
-class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):
-    """Server-rendered detail page for a single NonLocalizedEvent.
+class NonLocalizedEventDetailView(LoginRequiredMixin, EventSummaryMixin, DetailView):
+    """The Overview workflow step: the event summary above the event's alerts table.
 
-    Renders entirely from local data -- no external API calls at request time.
-    Resolves its object by either primary key or ``event_id``, consolidating
-    the Pk- and Id-based lookups. This view will take over the ``detail`` and
-    ``event-detail`` URL names when the Vue frontend is removed; until then it
-    is exercised only by its tests.
+    Renders entirely from local data -- no external API calls at request time. Resolves its object by
+    either primary key or ``event_id`` (the ``detail`` and ``event-detail`` URL names). SAGUARO subclasses
+    this view, so it keeps its name and module.
     """
     model = NonLocalizedEvent
     context_object_name = 'nonlocalizedevent'
+    # the per-event-type templates in detail/ extend the page that defines the workflow-step-content partial
+    workflow_step_content_template_names = ['tom_nonlocalizedevents/workflow_steps/overview.html']
 
-    def get_template_names(self) -> list[str]:
+    def get_page_template_names(self) -> list[str]:
         # per-event-type template first (stubs today, extending the generic
         # page), with the generic template as fallback
-        type_slug = SLUG_BY_EVENT_TYPE.get(self.object.event_type, 'unknown')
+        type_slug = SLUG_BY_EVENT_TYPE.get(self.event.event_type, 'unknown')
         return [f'tom_nonlocalizedevents/detail/{type_slug}_detail.html',
                 'tom_nonlocalizedevents/nonlocalizedevent_detail.html']
 
     def get_object(self, queryset: QuerySet | None = None) -> NonLocalizedEvent:
-        """Retrieve the NonLocalizedEvent by pk or event_id, raising Http404 on a miss."""
-        if queryset is None:
-            queryset = self.get_queryset()
-        if 'pk' in self.kwargs:
-            return get_object_or_404(queryset, pk=self.kwargs['pk'])
-        if 'event_id' in self.kwargs:
-            return get_object_or_404(queryset, event_id=self.kwargs['event_id'])
-        raise Http404('No pk or event_id provided')
-
-    def get_context_data(self, **kwargs: dict) -> dict:
-        context = super().get_context_data(**kwargs)
-        # one query for the sequence table; each row also shows its localization's numbers
-        context['sequences'] = self.object.sequences.select_related('localization')
-        return context
+        """The event EventSummaryMixin.setup() resolved from pk or event_id (Http404 on a miss)."""
+        return self.event
 
 
 class IngestFromGraceDBView(LoginRequiredMixin, FormView):

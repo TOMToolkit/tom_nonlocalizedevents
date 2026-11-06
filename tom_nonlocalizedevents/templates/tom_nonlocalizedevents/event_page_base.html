@@ -1,0 +1,26 @@
+{% extends 'tom_common/base.html' %}
+{% load static %}
+{% comment %}
+  This is the base template of every event detail + workflow step page.
+  It renders the event summary (the event header with its alert tabs, the sky map and the GCN
+  circulars) and, below the summary, the workflow step's content.
+{% endcomment %}
+
+{% block title %}{{ event.event_id }}{% endblock %}
+
+{% block additional_css %}
+<link rel="stylesheet" href="{% static 'tom_nonlocalizedevents/css/main.css' %}">
+{% endblock %}
+
+{# event summary #}
+{% block content %}
+{% include 'tom_nonlocalizedevents/partials/event_summary.html' %}
+<div id="workflow-step-content">
+  {# workflow step #}
+  {% block workflow_step_content %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+<script src="{% static 'tom_nonlocalizedevents/js/event_sky_map.js' %}" defer></script>
+{% endblock %}

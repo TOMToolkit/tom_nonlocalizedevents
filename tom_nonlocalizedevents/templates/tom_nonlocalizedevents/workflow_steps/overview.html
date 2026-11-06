@@ -1,0 +1,94 @@
+{% extends 'tom_nonlocalizedevents/event_page_base.html' %}
+{% load partials %}
+{% comment %}
+  The Overview workflow step: the event's alerts as a table under the event summary. The per-event-type templates
+  in detail/ extend nonlocalizedevent_detail.html, which extends this page, so a TOM's per-event-type override
+  keeps working.
+{% endcomment %}
+
+{% block workflow_step_content %}
+{% partialdef workflow-step-content inline %}
+<div class="row">
+  <div class="col-md-3">
+    <div class="card mb-3">
+      <div class="card-header">Event</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Type</dt>
+          <dd class="col-sm-7">{{ event.get_event_type_display }}</dd>
+          <dt class="col-sm-5">Created</dt>
+          <dd class="col-sm-7">{{ event.created|date:"Y-m-d H:i:s" }} UTC</dd>
+          <dt class="col-sm-5">Modified</dt>
+          <dd class="col-sm-7">{{ event.modified|date:"Y-m-d H:i:s" }} UTC</dd>
+          <dt class="col-sm-5">Alerts</dt>
+          <dd class="col-sm-7">{{ sequences|length }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-9">
+    {% comment %}
+      One row per EventSequence (alert), in sequence order; the alert payload lives in the details JSON and
+      the sky-localization numbers come from the sequence's EventLocalization. The selected alert's row is
+      highlighted. ({# #} comments are single-line only -- a multi-line one renders literally.)
+    {% endcomment %}
+    <div class="card">
+      <div class="card-header">Alerts</div>
+      <div class="card-body table-responsive">
+        {% if sequences %}
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Time</th>
+              <th>FAR (Hz)</th>
+              <th>Significant</th>
+              <th>Instruments</th>
+              <th>Area 50% (deg&sup2;)</th>
+              <th>Area 90% (deg&sup2;)</th>
+              <th>Distance (Mpc)</th>
+              <th>Skymap</th>
+              <th>Hermes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sequence in sequences %}
+            <tr{% if sequence == selected_sequence %} class="table-primary"{% endif %}>
+              <td>{{ sequence.sequence_id }}</td>
+              <td>{{ sequence.event_subtype }}{% if sequence.external_coincidence %} <span class="badge bg-warning text-dark">combined</span>{% endif %}</td>
+              <td>{{ sequence.details.time|default:"" }}</td>
+              <td>{{ sequence.details.far|stringformat:".2e"|default:"" }}</td>
+              <td>{{ sequence.details.significant|yesno:"yes,no," }}</td>
+              <td>{{ sequence.details.instruments|join:", " }}</td>
+              <td>{{ sequence.localization.area_50|floatformat:1|default:"" }}</td>
+              <td>{{ sequence.localization.area_90|floatformat:1|default:"" }}</td>
+              <td>
+                {% if sequence.localization %}
+                  {{ sequence.localization.distance_mean|floatformat:0 }} &plusmn; {{ sequence.localization.distance_std|floatformat:0 }}
+                {% endif %}
+              </td>
+              <td>
+                {% if sequence.localization.skymap_url %}
+                  <a href="{{ sequence.localization.skymap_url }}" target="_blank" rel="noopener">FITS</a>
+                {% endif %}
+              </td>
+              <td>
+                {% if sequence.hermes_url %}
+                  <a href="{{ sequence.hermes_url }}" target="_blank" rel="noopener">message</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">No alerts have been ingested for this event.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endpartialdef %}
+{% endblock %}

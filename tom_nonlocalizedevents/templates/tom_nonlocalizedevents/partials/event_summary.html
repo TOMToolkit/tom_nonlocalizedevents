@@ -1,0 +1,19 @@
+{% comment %}
+  The event summary shared by every page about this event.
+
+  NOTE: hx-history="false" keeps it out of htmx's history snapshot cache, so a browser-back
+  request re-renders the page (and re-creates the sky map) instead of restoring a stale canvas.
+{% endcomment %}
+<section id="event-summary" class="event-summary mb-3" hx-history="false">
+  <div class="row g-3">
+    <div class="col-lg-7">
+      {% include 'tom_nonlocalizedevents/partials/event_header.html' %}
+    </div>
+    <div class="col-lg-5">
+      {% if show_sky_map and sky_map_layers is not None %}
+        {% include 'tom_nonlocalizedevents/partials/event_sky_map.html' %}
+      {% endif %}
+    </div>
+  </div>
+  {% include 'tom_nonlocalizedevents/partials/event_gcn_circulars.html' %}
+</section>
