@@ -66,7 +66,9 @@ class TestDeprecatedSqlalchemyNames(TestCase):
             self.assertEqual(healpix_utils.SaSkymap.__tablename__, EventLocalization._meta.db_table)
             self.assertEqual(healpix_utils.SaSkymapTile.__tablename__, SkymapTile._meta.db_table)
             self.assertEqual(healpix_utils.SaEventCandidate.__tablename__, EventCandidate._meta.db_table)
-            self.assertEqual(str(healpix_utils.sa_engine.url.drivername), 'postgresql')
+            # the default URL names the psycopg (3) driver the plugin depends on; SQLAlchemy 2.0 would select
+            # psycopg2 for a plain postgresql:// URL
+            self.assertEqual(healpix_utils.sa_engine.url.drivername, 'postgresql+psycopg')
 
 
 class TestCredibleRegionWrappers(TestCase):

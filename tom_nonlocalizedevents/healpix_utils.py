@@ -1,11 +1,5 @@
 """ This set of methods supports generating and querying healpix MOC maps for GW events,
     using healpix_alchemy and model mappings with sql_alchemy queries.
-
-    Since 1.1.0 the credible-region computation lives in ``services.credible_regions`` (Django ORM) and
-    ``update_all_credible_region_percents_for_candidates`` here calls it. The SQLAlchemy engine and the
-    mapped classes (``sa_engine``, ``Base``, ``SaSkymap``, ``SaSkymapTile``, ``SaTarget``,
-    ``SaEventCandidate``) are still importable for TOMs that query the tiles themselves, but they are
-    deprecated, built on first access, and removed in 2.0.0 with the tom_regions refactor.
 """
 from __future__ import annotations
 
@@ -50,7 +44,8 @@ logger = logging.getLogger(__name__)
 
 SA_DB_CONNECTION_URL = os.getenv(
     'SA_DB_CONNECTION_URL',
-    (f"postgresql://{settings.DATABASES['default']['USER']}:{settings.DATABASES['default']['PASSWORD']}"
+    # NOTE specification of psycopg driver in URL
+    (f"postgresql+psycopg://{settings.DATABASES['default']['USER']}:{settings.DATABASES['default']['PASSWORD']}"
      f"@{settings.DATABASES['default']['HOST']}:{settings.DATABASES['default']['PORT']}"
      f"/{settings.DATABASES['default']['NAME']}"))
 POOL_RECYCLE = 4 * 60 * 60
