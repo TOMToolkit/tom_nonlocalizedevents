@@ -20,6 +20,8 @@ from tom_targets.models import Target
 from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization, EventSequence,
                                            NonLocalizedEvent, SkymapTile)
 
+TILE_ORDER = int(LEVEL)  # do this coersion here in case a pre-v1.1.1 healpix-alchemy is installed
+
 
 def healpix_pixel_count(order: int) -> int:
     """Return the number of HEALPix pixels at ``order`` (12 * 4**order)."""
@@ -39,7 +41,7 @@ def healpix_pixel_range(order: int, ipix: int) -> tuple[int, int]:
 
     tom_regions refactor: ``healpix_django.encoding`` provides this; keep the helper as the independent check.
     """
-    shift = 2 * (LEVEL - order)
+    shift = 2 * (TILE_ORDER - order)
     return ipix << shift, (ipix + 1) << shift
 
 

@@ -9,14 +9,15 @@ from django.db.models import signals
 from django.test import TestCase
 
 from astropy_healpix import level_ipix_to_uniq
-from healpix_alchemy.constants import LEVEL, PIXEL_AREA
+from healpix_alchemy.constants import PIXEL_AREA
 
 from tom_nonlocalizedevents.healpix_utils import uniq_to_bigintrange
 from tom_nonlocalizedevents.models import CredibleRegion, EventCandidate, SkymapTile
 from tom_nonlocalizedevents.tests.factories import (CredibleRegionFactory, EventCandidateFactory,
                                                     EventLocalizationFactory, NonLocalizedEventFactory,
-                                                    SkymapTileFactory, TargetFactory, build_synthetic_localization,
-                                                    healpix_pixel_area, healpix_pixel_count, healpix_pixel_range)
+                                                    SkymapTileFactory, TargetFactory, TILE_ORDER,
+                                                    build_synthetic_localization, healpix_pixel_area,
+                                                    healpix_pixel_count, healpix_pixel_range)
 
 
 class TestHealpixHelpers(TestCase):
@@ -25,7 +26,7 @@ class TestHealpixHelpers(TestCase):
         self.assertEqual(healpix_pixel_count(3), 768)
         self.assertAlmostEqual(healpix_pixel_area(0) * 12, 4 * math.pi)
         # the stored ranges count order-29 pixels, so the order-29 pixel area is healpix_alchemy's PIXEL_AREA
-        self.assertAlmostEqual(healpix_pixel_area(LEVEL) / PIXEL_AREA, 1.0, places=12)
+        self.assertAlmostEqual(healpix_pixel_area(TILE_ORDER) / PIXEL_AREA, 1.0, places=12)
 
     def test_pixel_range_matches_the_encoder_that_ingestion_uses(self):
         """The helper must produce the same ranges as the 1.0.0 UNIQ-based encoder for the same pixels.
@@ -51,10 +52,10 @@ class TestBuildSyntheticLocalization(TestCase):
         tiles = list(SkymapTile.objects.filter(localization=localization).order_by('tile'))
         self.assertEqual(len(tiles), 768)
         self.assertEqual(tiles[0].tile.lower, 0)
-        self.assertEqual(tiles[-1].tile.upper, healpix_pixel_count(LEVEL))
+        self.assertEqual(tiles[-1].tile.upper, healpix_pixel_count(TILE_ORDER))
         for previous, current in zip(tiles, tiles[1:]):
             self.assertEqual(previous.tile.upper, current.tile.lower)
-        self.assertEqual({tile.tile.upper - tile.tile.lower for tile in tiles}, {4 ** (LEVEL - 3)})
+        self.assertEqual({tile.tile.upper - tile.tile.lower for tile in tiles}, {4 ** (TILE_ORDER - 3)})
 
     def test_tile_areas_in_the_stored_encoding_sum_to_the_sphere(self):
         localization = build_synthetic_localization(self.event, [1.0] * 768)
@@ -139,5 +140,5 @@ class TestFactories(TestCase):
         self.assertEqual(first.tile.lower, 0)
 
         self.assertEqual(first.tile.upper, second.tile.lower)
-        self.assertEqual(first.tile.upper - first.tile.lower, 4 ** (LEVEL - 3))
+        self.assertEqual(first.tile.upper - first.tile.lower, 4 ** (TILE_ORDER - 3))
         self.assertAlmostEqual(first.probdensity * 4 * math.pi, 1.0)
