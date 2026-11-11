@@ -2,10 +2,12 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
 from django.db.models import QuerySet
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
+from django.views import View
 from django.views.generic import DetailView
 from django.views.generic.edit import FormView
 
@@ -22,6 +24,7 @@ from tom_nonlocalizedevents.forms import GraceDBEventIngestionForm
 from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, NonLocalizedEvent
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
+from tom_nonlocalizedevents.services.credible_regions import credible_region_moc_json
 from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, GravitationalWaveEventTable,
                                            NeutrinoEventTable, NonLocalizedEventTable,
@@ -51,6 +54,13 @@ EVENT_TYPE_TABS = {
 # reverse map for per-event-type detail template resolution ('all' has no type)
 SLUG_BY_EVENT_TYPE = {entry[0].value: slug for slug, entry in EVENT_TYPE_TABS.items()
                       if entry[0] is not None}
+
+# A localization's tiles never change (a new skymap is a new localization), so its credible-region MOCs can be
+# cached for as long as memory allows; a week bounds the server-side cache and a day the browser's.
+MOC_CACHE_SECONDS = 7 * 24 * 60 * 60
+MOC_CLIENT_CACHE_SECONDS = 24 * 60 * 60
+# HEALPix order the MOC JSON is degraded to by default: about 3.4 arcminute cells, a few kilobytes per region.
+MOC_DISPLAY_ORDER = 10
 
 
 class NonLocalizedEventListView(LoginRequiredMixin, HTMXTableViewMixin, FilterView):
@@ -186,6 +196,37 @@ class EventLocalizationViewSet(viewsets.ModelViewSet):
     queryset = EventLocalization.objects.all()
     serializer_class = EventLocalizationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class LocalizationMOCJsonView(LoginRequiredMixin, View):
+    """Serve a localization's credible region as the MOC JSON Aladin Lite draws.
+
+    ``GET localizations/<pk>/moc.json?prob=0.9&max_order=10`` answers ``{"<order>": [ipix, ...]}``: the
+    region at probability ``prob`` (default 0.9) degraded to ``max_order`` (default 10). A localization with
+    no tiles gives ``{}``. The response is cached per (localization, prob, max_order).
+    """
+
+    def get(self, request, pk: int) -> HttpResponse:
+        localization = get_object_or_404(EventLocalization, pk=pk)
+        try:
+            prob = float(request.GET.get('prob', 0.9))
+            max_order = int(request.GET.get('max_order', MOC_DISPLAY_ORDER))
+        except ValueError:
+            return HttpResponseBadRequest('prob must be a number and max_order an integer')
+
+        # repr() keeps the key exact and the same for every spelling of the same float ('0.9', '0.90', '9e-1')
+        cache_key = f'nonlocalizedevents:moc:{localization.pk}:{prob!r}:{max_order}'
+        moc_json = cache.get(cache_key)
+        if moc_json is None:
+            try:
+                moc_json = credible_region_moc_json(localization, prob, max_order)
+            except ValueError as error:
+                return HttpResponseBadRequest(str(error))
+            cache.set(cache_key, moc_json, MOC_CACHE_SECONDS)
+
+        response = JsonResponse(moc_json)
+        response['Cache-Control'] = f'private, max-age={MOC_CLIENT_CACHE_SECONDS}'
+        return response
 
 
 class NonLocalizedEventDetailView(LoginRequiredMixin, DetailView):

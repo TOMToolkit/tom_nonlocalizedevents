@@ -24,7 +24,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -33,20 +32,20 @@ classifiers = [
 ]
 
 dynamic = ["version"] # see tool.poetry.version
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 
 dependencies = [
     "astropy >=5.3.3,<8",
     "hop-client >=0.10,<1.0",
     "python-dateutil <3",
     "requests >=2,<3",
-    "tomtoolkit >=3,<4",
+    "tomtoolkit >=3.1,<4",
     "django-filter >=23.0,<30.0",
-    "healpix-alchemy >=1.1.0,<2.0",
+    "healpix-alchemy >=1.1.1,<2.0",
     "astropy-healpix >=1.0,<2.0",
     "MOCPy >=0.17.0,<1.0",
     "SQLAlchemy >=2.0.0,<3.0",
-    "psycopg2-binary <3",
+    "psycopg[binary] >=3.1,<4",
     "ligo.skymap >=2.1.0,<3.0",
 ]
 

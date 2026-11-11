@@ -5,25 +5,10 @@ from django.conf import settings
 
 from tom_targets.models import Target
 
-import numpy as np
-from psycopg2.extensions import register_adapter, AsIs
 from healpix_alchemy.constants import HPX
 from astropy.coordinates import SkyCoord
 from urllib.parse import urljoin
 import logging
-
-
-def adapt_numpy_float64(np_float64):
-    return AsIs(np_float64)
-
-
-def adapt_numpy_int64(np_int64):
-    return AsIs(np_int64)
-
-
-register_adapter(np.float64, adapt_numpy_float64)
-register_adapter(np.int64, adapt_numpy_int64)
-
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +225,7 @@ class EventCandidate(models.Model):
         default=1,
         help_text='Internal priority of this Event Candidate'
     )
+    # tom_regions refactor: becomes healpix_django.HealpixPointField (same bigint column, same order-29 encoding)
     healpix = models.BigIntegerField(
         default=-1,
         help_text='Stores the healpix index for this candidates target, used for MOC lookups'
@@ -249,6 +235,7 @@ class EventCandidate(models.Model):
 
     def save(self, *args, **kwargs):
         if self.target:
+            # tom_regions refactor: HPX.skycoord_to_healpix becomes healpix_django.encoding.skycoord_to_point
             self.healpix = HPX.skycoord_to_healpix(SkyCoord(self.target.ra, self.target.dec, unit='deg'))
         super().save(*args, **kwargs)
 
@@ -280,6 +267,9 @@ class SkymapTile(models.Model):
     """ A healpix_alchemy style tile linked to an event localization
     """
     localization = models.ForeignKey(EventLocalization, related_name='tiles', on_delete=models.CASCADE)
+    # tom_regions refactor: the range field, its SP-GiST index and the encoding come from healpix_django
+    # (MOCMixin / HealpixTileField / HealpixSpGistIndex); keep the column name, table name and encoding so the
+    # existing rows need no data migration. services/credible_regions.py is the only reader of the encoding.
     tile = BigIntegerRangeField(db_index=True)
     probdensity = models.FloatField(null=False)
     distance_mean = models.FloatField(
