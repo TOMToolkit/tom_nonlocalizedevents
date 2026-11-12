@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import DetailView
@@ -26,6 +26,7 @@ from tom_nonlocalizedevents.models import EventCandidate, EventLocalization, Non
 from tom_nonlocalizedevents.serializers import (EventCandidateSerializer, EventLocalizationSerializer,
                                                 NonLocalizedEventSerializer)
 from tom_nonlocalizedevents.services.credible_regions import credible_region_moc_json
+from tom_nonlocalizedevents.services.hermes_messages import hermes_messages_for_event
 from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, GravitationalWaveEventTable,
                                            NeutrinoEventTable, NonLocalizedEventTable,
@@ -250,6 +251,25 @@ class LocalizationMOCJsonView(LoginRequiredMixin, View):
         response = JsonResponse(moc_json)
         response['Cache-Control'] = f'private, max-age={MOC_CLIENT_CACHE_SECONDS}'
         return response
+
+
+class EventHermesMessagesView(LoginRequiredMixin, View):
+    """Render the Hermes archive messages that mention an event in the Hermes messages card
+     at the end of the event page.
+
+    The card (partials/event_hermes_messages.html) makes an htmx request to ``hermes-messages/<event_id>/``
+    when the page loads. The response is the message list partial.
+    """
+
+    def get(self, request, event_id: str) -> HttpResponse:
+        event = get_object_or_404(NonLocalizedEvent, event_id=event_id)
+        messages, error = hermes_messages_for_event(event)
+        sequences_by_hermes_message_id = {str(sequence.hermes_message_id): sequence
+                                          for sequence in event.sequences.all() if sequence.hermes_message_id}
+        rows = [{'message': message, 'sequence': sequences_by_hermes_message_id.get(message.uuid)}
+                for message in messages]
+        return render(request, 'tom_nonlocalizedevents/partials/event_hermes_messages_list.html',
+                      {'event': event, 'hermes_message_rows': rows, 'hermes_messages_error': error})
 
 
 class NonLocalizedEventDetailView(LoginRequiredMixin, EventSummaryMixin, DetailView):

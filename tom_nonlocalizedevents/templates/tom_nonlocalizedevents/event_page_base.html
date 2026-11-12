@@ -2,8 +2,10 @@
 {% load static %}
 {% comment %}
   This is the base template of every event detail + workflow step page.
-  It renders the event summary (the event header with its alert tabs, the sky map and the GCN
-  circulars) and, below the summary, the workflow step's content.
+  It renders:
+   - the event summary (the event header with its alert tabs and the sky map)
+   - the workflow step
+   - the Hermes messages card
 {% endcomment %}
 
 {% block title %}{{ event.event_id }}{% endblock %}
@@ -19,6 +21,8 @@
   {# workflow step #}
   {% block workflow_step_content %}{% endblock %}
 </div>
+{# hermes messages come last because there can be many #}
+{% include 'tom_nonlocalizedevents/partials/event_hermes_messages.html' %}
 {% endblock %}
 
 {% block extra_javascript %}
