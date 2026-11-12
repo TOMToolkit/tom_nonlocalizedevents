@@ -1,0 +1,16 @@
+{% comment %}
+  The Hermes messages card. The list itself is not part of this page: the card's body requests it from
+  EventHermesMessagesView (hermes-messages/<event_id>/) when the page loads.
+
+  The messages are about the event, not about one alert, so an alert-tab clicks are not relevant here.
+{% endcomment %}
+<div class="card mt-3" id="event-hermes-messages">
+  <div class="card-header py-1 d-flex justify-content-between">
+    <span>Hermes messages</span>
+    <small class="text-muted">messages in the Hermes archive mentioning {{ event.event_id }}</small>
+  </div>
+  <div class="card-body py-2 small"
+       hx-get="{% url 'nonlocalizedevents:event-hermes-messages' event.event_id %}" hx-trigger="load" hx-swap="innerHTML">
+    <span class="text-muted">Loading the messages from Hermes.</span>
+  </div>
+</div>

@@ -18,10 +18,12 @@ SI_PREFIXES = ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 'R', 'Q']
 
 
 class HeaderAttribute(NamedTuple):
-    """One row of the header's attribute list: a label, its text, and an optional hover explanation."""
+    """One row of the header's attribute list: a label, its text, an optional hover explanation, and an optional
+    URL that turns the text into a link."""
     label: str
     value: str
     title: str = ''
+    url: str = ''
 
 
 def format_inverse_far(far: float | None) -> str:
@@ -157,5 +159,10 @@ def header_attributes(sequence: EventSequence) -> list[HeaderAttribute]:
     """
     alert = parse_alert(sequence)
     if isinstance(alert, GravitationalWaveAlert):
-        return _gravitational_wave_attributes(sequence, alert)
-    return _generic_attributes(alert)
+        attributes = _gravitational_wave_attributes(sequence, alert)
+    else:
+        attributes = _generic_attributes(alert)
+    # the alert as Hermes received it, when the ingestion recorded the Hermes message id
+    if sequence.hermes_url:
+        attributes.append(HeaderAttribute('Hermes message', 'this alert on Hermes', url=sequence.hermes_url))
+    return attributes

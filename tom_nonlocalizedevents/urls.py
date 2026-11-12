@@ -25,6 +25,7 @@ urlpatterns = [
     path('ingest-gracedb/', views.IngestFromGraceDBView.as_view(), name='ingest-gracedb'),
     path('tab/<str:event_type_slug>/', views.EventTypeTabView.as_view(), name='tab'),
     path('localizations/<int:pk>/moc.json', views.LocalizationMOCJsonView.as_view(), name='localization-moc'),
+    path('hermes-messages/<str:event_id>/', views.EventHermesMessagesView.as_view(), name='event-hermes-messages'),
     path('<str:event_id>/candidates/', CandidatesWorkflowStepView.as_view(), name='candidates'),
     path('<str:event_id>/candidates/<int:pk>/viability/', CandidateViabilityView.as_view(),
          name='candidate-viability'),

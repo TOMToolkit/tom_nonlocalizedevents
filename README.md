@@ -39,7 +39,7 @@ indices with an SP-GiST index, and the credible-region queries use them.
 3. Also in `settings.py`, add the settings this app reads:
 
     ```python
-    # required: the model layer builds Hermes links from this URL
+    # required: the Hermes links on the pages and the Hermes messages list are built from this URL
     HERMES_API_URL = 'https://hermes.lco.global'
 
     # optional, shown with their defaults:
@@ -79,6 +79,12 @@ indices with an SP-GiST index, and the credible-region queries use them.
 - **Event detail pages**, resolved per event type (type-specific templates with a
   generic fallback), showing the event's sequences, localization areas and distances,
   and external links (Hermes, GraceDB, Treasure Map).
+- **Hermes messages**: every event page lists the messages in the Hermes archive that
+  mention the event, on any topic (GCN circulars, the IGWN alerts, messages astronomers and
+  TOMs post), read from the public archive query of Hermes (`HERMES_API_URL`) when the page
+  loads and cached for ten minutes; when Hermes cannot be reached the card says so and the
+  page is otherwise unaffected. The selected alert's row of attributes links to the alert's
+  own page on Hermes.
 - **Manual GraceDB ingestion**: the *Ingest event from GraceDB* button on the list page
   (login required), or the equivalent management command:
 

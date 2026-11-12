@@ -1,0 +1,24 @@
+{% comment %}
+  The body of the Hermes messages card returned by EventHermesMessagesView.
+{% endcomment %}
+{% if hermes_messages_error %}
+  <span class="text-muted">Hermes messages unavailable: {{ hermes_messages_error }}</span>
+{% elif not hermes_message_rows %}
+  <span class="text-muted">No message in the Hermes archive mentions {{ event.event_id }}.</span>
+{% else %}
+  <ul class="list-unstyled mb-0">
+    {% for row in hermes_message_rows %}
+    <li class="d-flex flex-wrap gap-2 align-items-baseline">
+      <span class="text-muted text-nowrap">{{ row.message.timestamp|date:"Y-m-d H:i" }}</span>
+      <span class="badge bg-secondary">{{ row.message.topic }}</span>
+      <a href="{{ row.message.url }}" target="_blank" rel="noopener">
+        {% if row.message.title %}{{ row.message.title }}
+        {% elif row.sequence %}alert {{ row.sequence.sequence_id }}: {{ row.sequence.event_subtype|default:'alert' }}
+        {% else %}alert not ingested by this TOM{% endif %}
+      </a>
+      {% if row.message.retracted %}<span class="badge bg-danger">retracted</span>{% endif %}
+      {% if row.message.originator %}<span class="text-muted">{{ row.message.originator }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+{% endif %}
