@@ -9,7 +9,8 @@
 
 {% block workflow_step_content %}
 {% partialdef workflow-step-content inline %}
-<div class="card">
+{# hx-headers: the CSRF token for the retire/activate POSTs of the table's buttons, inherited by them #}
+<div class="card" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   <div class="card-header d-flex justify-content-between align-items-center">
     <span>Candidates{% if selected_sequence %} <small class="text-muted">credible regions of alert {{ selected_sequence.sequence_id }}</small>{% endif %}</span>
     <span class="text-muted small">{{ record_count }} shown</span>
@@ -21,7 +22,9 @@
       {% crispy filter.form %}
     </form>
     <div class="progress"><div class="indeterminate"></div></div>
-    <div class="table-container">
+    {# reloads after a retire/activate (the action view answers with HX-Trigger: candidatesChanged) #}
+    <div class="table-container" hx-trigger="candidatesChanged from:body" hx-get="{{ request.path }}"
+         hx-include="#filter-form" hx-target="this" hx-swap="innerHTML" hx-indicator=".progress">
       {% include 'tom_nonlocalizedevents/partials/candidate_table_partial.html' %}
     </div>
   </div>

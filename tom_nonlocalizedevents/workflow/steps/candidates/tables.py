@@ -28,12 +28,13 @@ class CandidateTable(HTMXTable):
     priority = tables.Column(verbose_name='Priority')
     viability_reason = tables.Column(verbose_name='Reason', orderable=False)
     modified = tables.DateTimeColumn(verbose_name='Modified', format='Y-m-d H:i')
+    actions = tables.Column(verbose_name='', orderable=False, empty_values=())
 
     partial_template_name = 'tom_nonlocalizedevents/partials/candidate_table_partial.html'
 
     class Meta(HTMXTable.Meta):
         model = EventCandidate
-        fields = ('target', 'ra', 'dec', 'smallest_percent', 'priority', 'viability_reason', 'modified')
+        fields = ('target', 'ra', 'dec', 'smallest_percent', 'priority', 'viability_reason', 'modified', 'actions')
         sequence = fields
         exclude = ('selection',)
         row_attrs = {'class': lambda record: '' if record.viable else 'text-muted'}
@@ -52,6 +53,19 @@ class CandidateTable(HTMXTable):
 
     def render_smallest_percent(self, value: int) -> str:
         return f'{value}%'
+
+    def render_actions(self, record: EventCandidate) -> str:
+        """Retire (the browser asks for the reason, sent as HX-Prompt) or activate, as htmx POSTs.
+
+        The CSRF header comes from an hx-headers attribute on the step's card, inherited by these buttons.
+        """
+        url = reverse('nonlocalizedevents:candidate-viability', args=(record.nonlocalizedevent.event_id, record.pk))
+        if record.viable:
+            return format_html('<button type="button" class="btn btn-outline-secondary btn-sm" hx-post="{}" '
+                               'hx-vals=\'{{"viable": "false"}}\' hx-prompt="Reason for retiring {}" '
+                               'hx-swap="none">Retire</button>', url, record.target.name)
+        return format_html('<button type="button" class="btn btn-outline-primary btn-sm" hx-post="{}" '
+                           'hx-vals=\'{{"viable": "true"}}\' hx-swap="none">Activate</button>', url)
 
     def order_smallest_percent(self, queryset: QuerySet, is_descending: bool) -> tuple[QuerySet, bool]:
         # candidates outside every level (NULL) sort last either way; Postgres would put them first descending

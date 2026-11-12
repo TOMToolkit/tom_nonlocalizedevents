@@ -8,3 +8,8 @@
   {% if empty_database %}No candidates exist for any event yet.{% else %}No candidates match.{% endif %}
 </div>
 {% endif %}
+
+{% if request.htmx and sky_map_layers %}
+  {# a table reload after retire/activate also refreshes the sky-map markers #}
+  {% include 'tom_nonlocalizedevents/partials/event_sky_map_data.html' with oob=True %}
+{% endif %}

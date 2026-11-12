@@ -3,7 +3,7 @@ from django.urls import path
 from tom_common.api_router import SharedAPIRootRouter  # a singleton DRF Router
 
 from . import views
-from .workflow.steps.candidates.views import CandidatesWorkflowStepView
+from .workflow.steps.candidates.views import CandidatesWorkflowStepView, CandidateViabilityView
 from .workflow.steps.stub import WorkflowStepStubView
 
 # this mechanism allows ViewSets to be registered with the tom_common Router
@@ -26,6 +26,8 @@ urlpatterns = [
     path('tab/<str:event_type_slug>/', views.EventTypeTabView.as_view(), name='tab'),
     path('localizations/<int:pk>/moc.json', views.LocalizationMOCJsonView.as_view(), name='localization-moc'),
     path('<str:event_id>/candidates/', CandidatesWorkflowStepView.as_view(), name='candidates'),
+    path('<str:event_id>/candidates/<int:pk>/viability/', CandidateViabilityView.as_view(),
+         name='candidate-viability'),
     path('<str:event_id>/stub/', WorkflowStepStubView.as_view(), name='stub'),
     path('<int:pk>/', views.NonLocalizedEventDetailView.as_view(), name='detail'),
     path('<str:event_id>/', views.NonLocalizedEventDetailView.as_view(), name='event-detail'),

@@ -1,7 +1,10 @@
 """Tests of the Candidates workflow step: the table, its Active/Retired/All filter, the credible-region column and
 the cell text.
 """
+import json
+
 from django.db import connection
+from django.test import Client
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -131,3 +134,71 @@ class TestCandidatesCellText(CandidatesStepTestCase):
                                  if query['sql'].startswith('SELECT COUNT(*)')
                                  and 'tom_nonlocalizedevents_eventcandidate' in query['sql']]
         self.assertEqual(per_row_count_queries, [])
+
+
+class TestCandidateViability(CandidatesStepTestCase):
+    def viability_url(self, candidate):
+        return reverse('nonlocalizedevents:candidate-viability', args=(self.event.event_id, candidate.pk))
+
+    def test_retire_with_the_prompted_reason(self):
+        response = self.client.post(self.viability_url(self.inside), {'viable': 'false'}, HTTP_HX_REQUEST='true',
+                                    HTTP_HX_PROMPT='host galaxy at z=0.21')
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(json.loads(response['HX-Trigger']), {'candidatesChanged': {}})
+        self.inside.refresh_from_db()
+        self.assertFalse(self.inside.viable)
+        self.assertEqual(self.inside.viability_reason, 'host galaxy at z=0.21')
+
+    def test_retire_with_a_form_field_reason_and_activate(self):
+        self.client.post(self.viability_url(self.inside), {'viable': 'false', 'viability_reason': 'too faint'})
+        self.inside.refresh_from_db()
+        self.assertFalse(self.inside.viable)
+
+        response = self.client.post(self.viability_url(self.inside), {'viable': 'true'})
+
+        self.assertEqual(response.status_code, 204)
+        self.inside.refresh_from_db()
+        self.assertTrue(self.inside.viable)
+        self.assertEqual(self.inside.viability_reason, '')
+
+    def test_retiring_needs_a_reason(self):
+        response = self.client.post(self.viability_url(self.inside), {'viable': 'false'}, HTTP_HX_PROMPT='  ')
+
+        self.assertEqual(response.status_code, 400)
+        self.inside.refresh_from_db()
+        self.assertTrue(self.inside.viable)
+
+    def test_candidate_must_belong_to_the_event_in_the_url(self):
+        other_event_url = reverse('nonlocalizedevents:candidate-viability', args=('S000000xx', self.inside.pk))
+
+        self.assertEqual(self.client.post(other_event_url, {'viable': 'true'}).status_code, 404)
+
+    def test_login_and_csrf_are_required(self):
+        self.client.logout()
+        self.assertEqual(self.client.post(self.viability_url(self.inside), {'viable': 'true'}).status_code, 302)
+
+        strict_client = Client(enforce_csrf_checks=True)
+        strict_client.force_login(self.user)
+        page = strict_client.get(self.candidates_url)
+        token = page.cookies['csrftoken'].value
+        self.assertIn('hx-headers=\'{"X-CSRFToken": "', page.content.decode())
+        # tom_base's CSRF failure view redirects to the login page rather than answering 403
+        rejected = strict_client.post(self.viability_url(self.inside), {'viable': 'true'})
+        self.assertEqual(rejected.status_code, 302)
+        self.assertIn('/accounts/login/', rejected['Location'])
+        self.assertEqual(strict_client.post(self.viability_url(self.inside), {'viable': 'true'},
+                                            HTTP_X_CSRFTOKEN=token).status_code, 204)
+
+    def test_table_has_the_buttons_and_reloads_on_the_event(self):
+        content = self.client.get(self.candidates_url, {'viable': 'all'}).content.decode()
+
+        self.assertIn(f'hx-post="{self.viability_url(self.inside)}"', content)
+        self.assertIn('hx-prompt="Reason for retiring AT2026inside"', content)
+        self.assertIn('>Activate</button>', content)
+        self.assertIn('hx-trigger="candidatesChanged from:body"', content)
+
+    def test_table_reload_carries_the_sky_map_data_out_of_band(self):
+        content = self.client.get(self.candidates_url, **SORT_HEADERS).content.decode()
+
+        self.assertIn('<div id="event-sky-map-data-holder" hx-swap-oob="true">', content)
