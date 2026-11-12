@@ -51,7 +51,7 @@
   <dl class="row mb-0 mt-2 event-header-attributes">
     {% for attribute in header_attributes %}
     <dt class="col-sm-4 text-muted fw-normal"{% if attribute.title %} title="{{ attribute.title }}"{% endif %}>{{ attribute.label }}</dt>
-    <dd class="col-sm-8 mb-1">{{ attribute.value }}</dd>
+    <dd class="col-sm-8 mb-1">{% if attribute.url %}<a href="{{ attribute.url }}" target="_blank" rel="noopener">{{ attribute.value }}</a>{% else %}{{ attribute.value }}{% endif %}</dd>
     {% empty %}
     <dd class="col-12 text-muted mb-1">This alert carries no details.</dd>
     {% endfor %}

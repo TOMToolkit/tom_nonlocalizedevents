@@ -101,6 +101,18 @@ class TestHeaderAttributes(TestCase):
                          ['Pipeline / search'])
         self.assertEqual(header_attributes(EventSequenceFactory.create(details=None)), [])
 
+    def test_hermes_message_row_links_the_alert_when_its_message_id_is_known(self):
+        sequence = EventSequenceFactory.create(details=CBC_ALERT,
+                                               hermes_message_id='ed72d44c-f4e2-4a8f-87cb-dea283aa9bd9')
+
+        attributes = header_attributes(sequence)
+
+        self.assertEqual(attributes[-1], HeaderAttribute('Hermes message', 'this alert on Hermes',
+                                                         url=sequence.hermes_url))
+        self.assertTrue(attributes[-1].url.endswith('/message/ed72d44c-f4e2-4a8f-87cb-dea283aa9bd9'))
+        # without the message id (the factory's default, and GraceDB back-fills) there is no row
+        self.assertNotIn('Hermes message', labels(header_attributes(EventSequenceFactory.create(details=CBC_ALERT))))
+
     def test_generic_event_type_lists_scalar_entries(self):
         event = NonLocalizedEventFactory.create(event_type=NonLocalizedEvent.NonLocalizedEventType.NEUTRINO)
         sequence = EventSequenceFactory.create(nonlocalizedevent=event,
