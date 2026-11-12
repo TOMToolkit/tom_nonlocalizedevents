@@ -33,6 +33,8 @@ class CandidateTable(HTMXTable):
     partial_template_name = 'tom_nonlocalizedevents/partials/candidate_table_partial.html'
 
     class Meta(HTMXTable.Meta):
+        """Recall that render_<field> methods determine how fields are rendered in the table.
+        """
         model = EventCandidate
         fields = ('target', 'ra', 'dec', 'smallest_percent', 'priority', 'viability_reason', 'modified', 'actions')
         sequence = fields
@@ -55,17 +57,25 @@ class CandidateTable(HTMXTable):
         return f'{value}%'
 
     def render_actions(self, record: EventCandidate) -> str:
-        """Retire (the browser asks for the reason, sent as HX-Prompt) or activate, as htmx POSTs.
-
-        The CSRF header comes from an hx-headers attribute on the step's card, inherited by these buttons.
+        """Retire or activate, and delete, as htmx requests.
         """
-        url = reverse('nonlocalizedevents:candidate-viability', args=(record.nonlocalizedevent.event_id, record.pk))
+        event_id = record.nonlocalizedevent.event_id
+        viability_url = reverse('nonlocalizedevents:candidate-viability', args=(event_id, record.pk))
+        delete_url = reverse('nonlocalizedevents:candidate-delete', args=(event_id, record.pk))
         if record.viable:
-            return format_html('<button type="button" class="btn btn-outline-secondary btn-sm" hx-post="{}" '
-                               'hx-vals=\'{{"viable": "false"}}\' hx-prompt="Reason for retiring {}" '
-                               'hx-swap="none">Retire</button>', url, record.target.name)
-        return format_html('<button type="button" class="btn btn-outline-primary btn-sm" hx-post="{}" '
-                           'hx-vals=\'{{"viable": "true"}}\' hx-swap="none">Activate</button>', url)
+            viability_button = format_html(
+                '<button type="button" class="btn btn-outline-secondary btn-sm" hx-post="{}" '
+                'hx-vals=\'{{"viable": "false"}}\' hx-prompt="Reason for retiring {}" hx-swap="none">Retire</button>',
+                viability_url, record.target.name)
+        else:
+            viability_button = format_html(
+                '<button type="button" class="btn btn-outline-primary btn-sm" hx-post="{}" '
+                'hx-vals=\'{{"viable": "true"}}\' hx-swap="none">Activate</button>', viability_url)
+        delete_button = format_html(
+            '<button type="button" class="btn btn-outline-danger btn-sm ms-1" hx-delete="{}" '
+            'hx-confirm="Remove {} from the candidates of {}? The target is kept." hx-swap="none">Delete</button>',
+            delete_url, record.target.name, event_id)
+        return format_html('{}{}', viability_button, delete_button)
 
     def order_smallest_percent(self, queryset: QuerySet, is_descending: bool) -> tuple[QuerySet, bool]:
         # candidates outside every level (NULL) sort last either way; Postgres would put them first descending

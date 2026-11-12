@@ -15,14 +15,24 @@
     <span>Candidates{% if selected_sequence %} <small class="text-muted">credible regions of alert {{ selected_sequence.sequence_id }}</small>{% endif %}</span>
     <span class="text-muted small">{{ record_count }} shown</span>
   </div>
+
   <div class="card-body">
+    {# Add event candidate form #}
+    <form class="d-flex flex-wrap gap-2 align-items-center mb-3"
+          hx-post="{% url 'nonlocalizedevents:candidate-add' event.event_id %}"
+          hx-swap="none" hx-indicator=".progress">
+      <input type="text" name="target" class="form-control form-control-sm w-auto"
+             placeholder="target name, alias or id" aria-label="Target to add as a candidate" required>
+      <button type="submit" class="btn btn-sm btn-outline-primary">Add candidate</button>
+    </form>
+   {# filters for the candidates #}
     <form id="filter-form" class="mb-2" hx-get="{{ request.path }}" hx-target="div.table-container" hx-swap="innerHTML"
           hx-indicator=".progress">
       {% if selected_sequence %}<input type="hidden" name="sequence" value="{{ selected_sequence.sequence_id }}">{% endif %}
       {% crispy filter.form %}
     </form>
     <div class="progress"><div class="indeterminate"></div></div>
-    {# reloads after a retire/activate (the action view answers with HX-Trigger: candidatesChanged) #}
+    {# reloads after a retire/activate (the view answers with HX-Trigger: candidatesChanged) #}
     <div class="table-container" hx-trigger="candidatesChanged from:body" hx-get="{{ request.path }}"
          hx-include="#filter-form" hx-target="this" hx-swap="innerHTML" hx-indicator=".progress">
       {% include 'tom_nonlocalizedevents/partials/candidate_table_partial.html' %}

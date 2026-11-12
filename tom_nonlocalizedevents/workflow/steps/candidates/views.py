@@ -3,19 +3,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import IntegerField, OuterRef, QuerySet, Subquery, Value
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.views import View
 
 from django_filters.views import FilterView
 from django_htmx.http import trigger_client_event
 
 from tom_common.htmx_table import HTMXTableViewMixin
+from tom_targets.models import Target
 
 from tom_nonlocalizedevents.event_summary.views import EventSummaryMixin
 from tom_nonlocalizedevents.models import CredibleRegion, EventCandidate, NonLocalizedEvent
+from tom_nonlocalizedevents.services.candidates import add_candidate, find_target, remove_candidate
 from tom_nonlocalizedevents.workflow.steps.candidates.filters import CandidateFilterSet
 from tom_nonlocalizedevents.workflow.steps.candidates.tables import CandidateTable
 
@@ -87,6 +90,57 @@ class CandidateViabilityView(LoginRequiredMixin, View):
         candidate.viability_reason = '' if viable else reason
         candidate.save()
         return trigger_client_event(HttpResponse(status=204), 'candidatesChanged')
+
+
+class CandidateAddView(LoginRequiredMixin, View):
+    """Make a target a candidate of the event, from the form on the Candidates workflow step.
+
+    The form posts the target's name, alias or primary key with htmx. The answer (what was added, that the target
+    already was a candidate, that no target matched, or that several did) is a Django message, reported where every
+    other form in a TOM reports: the messages area at the top of the page. The response body is tom_base's messages
+    partial, tom_common/partials/messages.html, whose div is marked ``hx-swap-oob="true"``, so htmx swaps it into
+    that area whatever the form's own target is (the form has ``hx-swap="none"``). When a candidate was created the
+    response also carries the header ``HX-Trigger: candidatesChanged``, on which the table container reloads
+    itself (see CandidateViabilityView).
+    """
+    messages_template_name = 'tom_common/partials/messages.html'
+
+    def post(self, request: HttpRequest, event_id: str) -> HttpResponse:
+        event = get_object_or_404(NonLocalizedEvent, event_id=event_id)
+        name_or_pk = (request.POST.get('target') or '').strip()
+        created = False
+        if not name_or_pk:
+            messages.error(request, "A target's name, alias or primary key is required.")
+        else:
+            try:
+                target = find_target(name_or_pk)
+            except (Target.DoesNotExist, Target.MultipleObjectsReturned) as error:
+                messages.error(request, str(error))
+            else:
+                candidate, created = add_candidate(event, target)
+                if created:
+                    messages.success(request, f'{target.name} added as a candidate of {event.event_id}.')
+                else:
+                    messages.info(request, f'{target.name} already is a candidate of {event.event_id}.')
+        response = render(request, self.messages_template_name)
+        return trigger_client_event(response, 'candidatesChanged') if created else response
+
+
+class CandidateDeleteView(LoginRequiredMixin, View):
+    """Remove a candidate from the event, from the Delete button of the candidates table (an htmx DELETE).
+
+    The candidate row and its credible regions go; the target stays. The answer is a Django message in tom_base's
+    messages partial, as for CandidateAddView, and the response carries ``HX-Trigger: candidatesChanged`` so the
+    table reloads and the sky map redraws (see CandidateViabilityView).
+    """
+    messages_template_name = 'tom_common/partials/messages.html'
+
+    def delete(self, request: HttpRequest, event_id: str, pk: int) -> HttpResponse:
+        candidate = get_object_or_404(EventCandidate, pk=pk, nonlocalizedevent__event_id=event_id)
+        target_name = candidate.target.name
+        remove_candidate(candidate)
+        messages.success(request, f'{target_name} is no longer a candidate of {event_id}; the target is kept.')
+        return trigger_client_event(render(request, self.messages_template_name), 'candidatesChanged')
 
 
 def cell_text(event: NonLocalizedEvent) -> str:

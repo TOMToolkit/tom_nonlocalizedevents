@@ -85,6 +85,16 @@ indices with an SP-GiST index, and the credible-region queries use them.
   loads and cached for ten minutes; when Hermes cannot be reached the card says so and the
   page is otherwise unaffected. The selected alert's row of attributes links to the alert's
   own page on Hermes.
+- **Candidates**: the Candidates workflow step lists an event's candidate targets with the
+  credible region each falls in for the selected alert, retires and activates them, adds a
+  target as a candidate by name, alias or id (matched as the TOM matches target names), and
+  deletes a candidate (the target is kept). The equivalent management commands are
+
+    ```bash
+    python manage.py candidate add S230518h AT2023abc
+    python manage.py candidate remove S230518h AT2023abc
+    ```
+
 - **Manual GraceDB ingestion**: the *Ingest event from GraceDB* button on the list page
   (login required), or the equivalent management command:
 
