@@ -1,0 +1,23 @@
+{% extends 'tom_nonlocalizedevents/event_page_base.html' %}
+{% load partials %}
+{% comment %}
+  The stub workflow step's template. Its content is wrapped in the django-template-partials block named
+  workflow-step-content, which is the part of the page that a click on an alert tab re-renders out of band.
+{% endcomment %}
+
+{% block workflow_step_content %}
+{% partialdef workflow-step-content inline %}
+<div class="card">
+  <div class="card-header">Workflow step stub</div>
+  <div class="card-body">
+    <p>This page is the plugin's example of a workflow step for <strong>{{ event.event_id }}</strong>.
+      {% if selected_sequence %}The selected alert is
+      <strong>{{ selected_sequence.sequence_id }}: {{ selected_sequence.event_subtype }}</strong>; the alert tabs
+      above re-render this content for the alert they select.{% endif %}</p>
+    <p class="mb-0">A TOM adds its own workflow steps by copying <code>tom_nonlocalizedevents/workflow/steps/stub.py</code>
+      and this template into <code>custom_code</code> and listing them in
+      <code>NONLOCALIZEDEVENTS_WORKFLOW_STEPS</code>; each workflow step is a link here and a column on the event list.</p>
+  </div>
+</div>
+{% endpartialdef %}
+{% endblock %}

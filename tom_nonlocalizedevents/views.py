@@ -30,6 +30,7 @@ from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, GravitationalWaveEventTable,
                                            NeutrinoEventTable, NonLocalizedEventTable,
                                            UnknownEventTable, XRayTransientEventTable)
+from tom_nonlocalizedevents.workflow.registry import workflow_step_columns
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,13 @@ class NonLocalizedEventListView(LoginRequiredMixin, HTMXTableViewMixin, FilterVi
         if self.event_type is not None:  # None: the All tab
             queryset = queryset.filter(event_type=self.event_type)
         return queryset
+
+    def get_table_kwargs(self) -> dict:
+        # the workflow-step columns
+        kwargs = super().get_table_kwargs()
+        if self.tab_slug == 'gw':  # only GW is implemented at the moment
+            kwargs['extra_columns'] = workflow_step_columns()
+        return kwargs
 
     def get_template_names(self) -> list[str]:
         # a tab click (HX-Target: event-tabs-region) receives the whole region

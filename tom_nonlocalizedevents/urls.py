@@ -3,6 +3,7 @@ from django.urls import path
 from tom_common.api_router import SharedAPIRootRouter  # a singleton DRF Router
 
 from . import views
+from .workflow.steps.stub import WorkflowStepStubView
 
 # this mechanism allows ViewSets to be registered with the tom_common Router
 # for any of the INSTALLED_APPS (i.e. the routes are added because the APP is
@@ -23,6 +24,7 @@ urlpatterns = [
     path('ingest-gracedb/', views.IngestFromGraceDBView.as_view(), name='ingest-gracedb'),
     path('tab/<str:event_type_slug>/', views.EventTypeTabView.as_view(), name='tab'),
     path('localizations/<int:pk>/moc.json', views.LocalizationMOCJsonView.as_view(), name='localization-moc'),
+    path('<str:event_id>/stub/', WorkflowStepStubView.as_view(), name='stub'),
     path('<int:pk>/', views.NonLocalizedEventDetailView.as_view(), name='detail'),
     path('<str:event_id>/', views.NonLocalizedEventDetailView.as_view(), name='event-detail'),
 ]
