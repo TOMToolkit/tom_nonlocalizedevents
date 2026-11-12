@@ -40,6 +40,9 @@ from tom_nonlocalizedevents.models import NonLocalizedEvent
 
 # the workflow steps used when settings.py does not define NONLOCALIZEDEVENTS_WORKFLOW_STEPS
 DEFAULT_WORKFLOW_STEPS = [
+    {'label': 'Candidates',
+     'url_name': 'nonlocalizedevents:candidates',
+     'cell_text': 'tom_nonlocalizedevents.workflow.steps.candidates.views.cell_text'},
     {'label': 'Stub',  # column heading in EventList
      'url_name': 'nonlocalizedevents:stub',  # urlpattern URL name for View
      'cell_text': 'tom_nonlocalizedevents.workflow.steps.stub.cell_text'},  # callable, returns row value

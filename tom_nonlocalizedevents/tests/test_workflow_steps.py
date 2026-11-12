@@ -25,15 +25,17 @@ class TestRegistry(TestCase):
     def setUp(self):
         get_workflow_steps.cache_clear()
 
-    def test_default_is_the_stub(self):
+    def test_default_is_candidates_then_the_stub(self):
         workflow_steps = get_workflow_steps()
 
-        self.assertEqual([workflow_step.label for workflow_step in workflow_steps], ['Stub'])
-        self.assertEqual(DEFAULT_WORKFLOW_STEPS[0]['url_name'], 'nonlocalizedevents:stub')
-        event = NonLocalizedEventFactory.build(event_id='S260901zz')
-        self.assertEqual(workflow_steps[0].url(event), '/nonlocalizedevents/S260901zz/stub/')
-        self.assertEqual(workflow_steps[0].cell_text(event), 'open')
-        self.assertEqual(workflow_steps[0].column_name, 'stub')
+        self.assertEqual([workflow_step.label for workflow_step in workflow_steps], ['Candidates', 'Stub'])
+        self.assertEqual(DEFAULT_WORKFLOW_STEPS[1]['url_name'], 'nonlocalizedevents:stub')
+        event = NonLocalizedEventFactory.create(event_id='S260901zz')
+        self.assertEqual(workflow_steps[0].url(event), '/nonlocalizedevents/S260901zz/candidates/')
+        self.assertEqual(workflow_steps[0].cell_text(event), '0 active / 0 retired')
+        self.assertEqual(workflow_steps[1].url(event), '/nonlocalizedevents/S260901zz/stub/')
+        self.assertEqual(workflow_steps[1].cell_text(event), 'open')
+        self.assertEqual([workflow_step.column_name for workflow_step in workflow_steps], ['candidates', 'stub'])
 
     @override_settings(NONLOCALIZEDEVENTS_WORKFLOW_STEPS=[OVERVIEW_AS_OBSERVATIONS, STUB_AS_PLANS])
     def test_a_tom_replaces_the_list(self):
@@ -47,10 +49,10 @@ class TestRegistry(TestCase):
         self.assertEqual(workflow_steps[1].cell_text(event), 'Plans')  # no cell_text: the label
 
     def test_the_cache_follows_the_setting(self):
-        self.assertEqual(len(get_workflow_steps()), 1)
+        self.assertEqual(len(get_workflow_steps()), 2)
         with override_settings(NONLOCALIZEDEVENTS_WORKFLOW_STEPS=[]):
             self.assertEqual(get_workflow_steps(), [])
-        self.assertEqual(len(get_workflow_steps()), 1)
+        self.assertEqual(len(get_workflow_steps()), 2)
 
     def test_configuration_errors_name_the_entry(self):
         event = NonLocalizedEventFactory.build(event_id='S260901zz')
