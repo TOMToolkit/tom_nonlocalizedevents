@@ -6,3 +6,10 @@
 .span {
     color: white;
 }
+/* event summary (event_page_base.html and the {% event_summary %} tag) */
+.event-summary-progress { height: 3px; visibility: hidden; margin-top: -3px; }
+.htmx-request .event-summary-progress, .htmx-request.event-summary-progress { visibility: visible; }
+.event-header-attributes dt { white-space: nowrap; }
+.event-sky-map-viewer { width: 100%; height: 320px; }
+.event-sky-map-legend { font-size: .8rem; }
+.event-sky-map-legend i { display: inline-block; width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; border-radius: 2px; }

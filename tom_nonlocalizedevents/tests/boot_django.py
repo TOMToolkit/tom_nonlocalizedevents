@@ -15,7 +15,7 @@ import os
 import django
 from django.conf import settings
 
-from tom_common.default_settings import TOMTOOKIT_INSTALLED_APPS, TOMTOOKIT_MIDDLEWARE
+from tom_common.default_settings import TOMTOOLKIT_INSTALLED_APPS, TOMTOOLKIT_MIDDLEWARE
 
 APP_NAME = 'tom_nonlocalizedevents'  # the stand-alone app we are testing
 
@@ -41,12 +41,9 @@ def boot_django() -> None:
                 'PORT': os.getenv('DB_PORT', '5432'),
             }
         },
-        # Migrations 0001+ were generated with AutoField PKs and the migration
-        # graph is frozen (downstream TOMs depend on it) -- keep the default
-        # that produced it so makemigrations --check stays clean.
-        DEFAULT_AUTO_FIELD='django.db.models.AutoField',
+        DEFAULT_AUTO_FIELD='django.db.models.AutoField',  # so makemigrations --check stays clean.
         TOM_NAME='Test TOM',
-        INSTALLED_APPS=TOMTOOKIT_INSTALLED_APPS + [APP_NAME],
+        INSTALLED_APPS=TOMTOOLKIT_INSTALLED_APPS + ['template_partials', APP_NAME],
         SITE_ID=1,
         EXTRA_FIELDS={},
         TIME_ZONE='UTC',
@@ -56,7 +53,7 @@ def boot_django() -> None:
             'observation_change_state': 'tom_common.hooks.observation_change_state',
             'data_product_post_upload': 'tom_dataproducts.hooks.data_product_post_upload'
         },
-        MIDDLEWARE=TOMTOOKIT_MIDDLEWARE,
+        MIDDLEWARE=TOMTOOLKIT_MIDDLEWARE,
         TEMPLATES=[
             {
                 'BACKEND': 'django.template.backends.django.DjangoTemplates',

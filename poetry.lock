@@ -58,7 +58,7 @@ version = "0.8.0"
 description = "Reusable constraint types to use with typing.Annotated"
 optional = false
 python-versions = ">=3.10"
-groups = ["coverage"]
+groups = ["main", "coverage"]
 files = [
     {file = "annotated_types-0.8.0-py3-none-any.whl", hash = "sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"},
     {file = "annotated_types-0.8.0.tar.gz", hash = "sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7"},
@@ -1460,6 +1460,25 @@ typing_extensions = "*"
 dev = ["coverage", "dj-database-url", "django-stubs[compatible-mypy]", "ruff"]
 mysql = ["mysqlclient"]
 postgres = ["psycopg[binary]"]
+
+[[package]]
+name = "django-template-partials"
+version = "25.3"
+description = "Reusable named inline-partials for the Django Template Language"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "django_template_partials-25.3-py2.py3-none-any.whl", hash = "sha256:a19334934cf40e4e1218802a4ddfdf22b8f78cc5a0b8c75a18b97e6ea4f3c108"},
+    {file = "django_template_partials-25.3.tar.gz", hash = "sha256:6d11f7bb049ce3032e6fe3331137b771e34239ce1af18c55ef6a9b667cf2ef36"},
+]
+
+[package.dependencies]
+Django = "*"
+
+[package.extras]
+docs = ["Sphinx"]
+tests = ["coverage", "django_coverage_plugin"]
 
 [[package]]
 name = "djangorestframework"
@@ -3690,7 +3709,7 @@ version = "2.14.3"
 description = "Data validation using Python type hints"
 optional = false
 python-versions = ">=3.10"
-groups = ["coverage"]
+groups = ["main", "coverage"]
 files = [
     {file = "pydantic-2.14.3-py3-none-any.whl", hash = "sha256:3f7b347782ab7e4cf4c798496ae3a82787d9f21ec12676a9c564355eeef8daa8"},
     {file = "pydantic-2.14.3.tar.gz", hash = "sha256:1054f237f4d4733e5a30e1e2333bd33a2004ab9ab1510bd053a9a31bb48e232d"},
@@ -3712,7 +3731,7 @@ version = "2.50.4"
 description = "Core functionality for Pydantic validation and serialization"
 optional = false
 python-versions = ">=3.10"
-groups = ["coverage"]
+groups = ["main", "coverage"]
 files = [
     {file = "pydantic_core-2.50.4-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:83d2beac85b757bfc404c5c0612df51c4ef33bbb7be65cf4a96b4da7cbc4ff4f"},
     {file = "pydantic_core-2.50.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:76e0065998159244ff4c097a6c05ff08019c6fbb6e597a85846e73044f0215b3"},
@@ -4845,7 +4864,7 @@ version = "0.4.5"
 description = "Runtime typing introspection tools"
 optional = false
 python-versions = ">=3.10"
-groups = ["coverage"]
+groups = ["main", "coverage"]
 files = [
     {file = "typing_inspection-0.4.5-py3-none-any.whl", hash = "sha256:bc210535442b39e1bf2805e0c7a17dfd6a4ace760c84c7f7d16245d23a6b1c39"},
     {file = "typing_inspection-0.4.5.tar.gz", hash = "sha256:7f16c411e7930dc79596d42ab44672a3fe5f60eb34b781a1647e7872363120c7"},
@@ -5005,4 +5024,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "85a69b1f64da95d676fcf6a40d1ae8d64ad87d21debe7cc701f9c20930bb8ddf"
+content-hash = "5a1e0eda4005f9042326205b40a12cb2dc2ceccdd3566b2bf9c4224bb170d7ad"

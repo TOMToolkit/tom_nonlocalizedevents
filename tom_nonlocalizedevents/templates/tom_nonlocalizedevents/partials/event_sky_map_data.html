@@ -1,0 +1,4 @@
+{# The sky-map layers as JSON for the JavaScript; with oob=True (the alert-tab response) it replaces the one on the page. #}
+<div id="event-sky-map-data-holder"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {{ sky_map_layers|json_script:sky_map_data_id }}
+</div>

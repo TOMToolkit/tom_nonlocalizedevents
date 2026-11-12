@@ -1,0 +1,27 @@
+{% comment %}
+  The sky map: an Aladin Lite viewer (static/tom_nonlocalizedevents/js/event_sky_map.js) drawing the selected
+  alert's credible regions, the event's candidates and the sun and moon. The viewer element is never
+  swapped; an alert-tab click replaces the data element inside #event-sky-map-data-slot out of band and the
+  JavaScript redraws the layers.
+{% endcomment %}
+<div class="card h-100" id="event-sky-map">
+  <div class="card-header py-1 d-flex justify-content-between align-items-center">
+    <span>Sky map</span>
+    {% with at=sky_map_layers.at %}<small class="text-muted">sun and moon at {{ at|slice:":10" }} {{ at|slice:"11:16" }} UTC</small>{% endwith %}
+  </div>
+  <div class="card-body p-1">
+    <div id="event-sky-map-viewer" class="event-sky-map-viewer"></div>
+    <div id="event-sky-map-data-slot">
+      {% include 'tom_nonlocalizedevents/partials/event_sky_map_data.html' %}
+    </div>
+    <div class="event-sky-map-legend text-muted px-2 pt-1">
+      <span class="me-2"><i style="border: 2px solid #1f77b4"></i>90%</span>
+      <span class="me-2"><i style="background: #1f77b4; opacity: .5"></i>50%</span>
+      <span class="me-2"><i style="border: 2px dashed #ff7f0e"></i>combined 90%</span>
+      <span class="me-2"><i style="background: #4da3ff; border-radius: 50%"></i>candidate</span>
+      <span class="me-2"><i style="background: #8a8f94; border-radius: 50%"></i>retired</span>
+      <span class="me-2"><i style="background: #ffd43b; border-radius: 50%"></i>sun ({{ sky_map_layers.sun.exclusion_radius_deg|floatformat:0 }}°)</span>
+      <span><i style="background: #cfd4da; border-radius: 50%"></i>moon ({{ sky_map_layers.moon.exclusion_radius_deg|floatformat:0 }}°, {{ sky_map_layers.moon.illumination|floatformat:2 }} illuminated)</span>
+    </div>
+  </div>
+</div>

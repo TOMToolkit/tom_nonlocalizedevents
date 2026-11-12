@@ -1,0 +1,72 @@
+{% comment %}
+  This partial renders the event header. The header shows the event's identity (its id, its state and links
+  to the external services for the event). There is one tab for each alert the event has received. The
+  attributes of the selected alert are shown. There is a link to each workflow step.
+
+  Clicking an alert tab updates the event header with values from the selected alert. The clicked-upon
+  alert tab sends an htmx request whose hx-target is the outermost div of this partial. That means the
+  response replaces the whole (outermost) div, updating every part of the page. The div contains every
+  part that changes and every part that changes must be in that outermost div.
+
+  The sky map is the exception: it changes with the selected alert, but it stays outside the div to
+  preserve the Aladin viewer. Instead, the sky map is updated by swapping its data element
+  out of band (see partials/event_summary_update.html).
+{% endcomment %}
+<div id="{{ event_header_id }}" class="event-header">
+  <div class="d-flex flex-wrap align-items-baseline gap-2">
+    <h2 class="mb-0">{{ event.event_id }}</h2>
+    <span class="badge {% if event.state == 'ACTIVE' %}bg-success{% elif event.state == 'RETRACTED' %}bg-danger{% else %}bg-secondary{% endif %}">{{ event.get_state_display }}</span>
+    {% if selected_alert.significant %}<span class="badge bg-primary">significant</span>{% endif %}
+    <span class="ms-auto small">
+      {% if event.event_type == 'GW' %}
+        <a href="{{ event.gracedb_url }}" target="_blank" rel="noopener">GraceDB</a>
+        <a href="{{ event.treasuremap_url }}" target="_blank" rel="noopener" class="ms-2">Treasure Map</a>
+      {% endif %}
+      <a href="{{ event.hermes_url }}" target="_blank" rel="noopener" class="ms-2">Hermes</a>
+    </span>
+  </div>
+
+  {# Alert tabs: plain links that htmx turns into header updates #}
+  <ul class="nav nav-tabs mt-2" id="alert-tabs">
+    {% for sequence in sequences %}
+    <li class="nav-item">
+      <a class="nav-link{% if sequence == selected_sequence %} active{% endif %}"
+         href="{% querystring sequence=sequence.sequence_id %}"
+         hx-get="{{ tab_request_path }}{% querystring sequence=sequence.sequence_id %}"
+         hx-target="#{{ event_header_id }}" hx-swap="outerHTML"
+         hx-push-url="{% querystring sequence=sequence.sequence_id %}"
+         hx-indicator="#event-summary-progress">
+        {{ sequence.sequence_id }}: {{ sequence.event_subtype|default:'alert' }}
+        {% if sequence.external_coincidence %}<span class="badge bg-warning text-dark">combined</span>{% endif %}
+        {% if sequence.ingestor_source == 'gracedb' %}<span class="badge bg-secondary">GraceDB</span>{% endif %}
+      </a>
+    </li>
+    {% empty %}
+    <li class="nav-item"><span class="nav-link disabled">No alerts ingested</span></li>
+    {% endfor %}
+  </ul>
+  <div class="progress event-summary-progress" id="event-summary-progress"><div class="indeterminate"></div></div>
+
+  {% if selected_sequence %}
+  <dl class="row mb-0 mt-2 event-header-attributes">
+    {% for attribute in header_attributes %}
+    <dt class="col-sm-4 text-muted fw-normal"{% if attribute.title %} title="{{ attribute.title }}"{% endif %}>{{ attribute.label }}</dt>
+    <dd class="col-sm-8 mb-1">{{ attribute.value }}</dd>
+    {% empty %}
+    <dd class="col-12 text-muted mb-1">This alert carries no details.</dd>
+    {% endfor %}
+  </dl>
+  {% endif %}
+
+  {# Workflow steps: Overview comes first; the rest come from NONLOCALIZEDEVENTS_WORKFLOW_STEPS #}
+  <nav class="workflow-steps mt-2 pt-2 border-top d-flex flex-wrap align-items-center gap-2" id="workflow-steps" aria-label="Workflow steps">
+    <span class="text-muted small">Workflow steps</span>
+    {% url 'nonlocalizedevents:event-detail' event.event_id as overview_url %}
+    <a href="{{ overview_url }}{% if selected_sequence %}?sequence={{ selected_sequence.sequence_id }}{% endif %}"
+       class="btn btn-sm {% if request.path == overview_url %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">Overview</a>
+    {% for step in workflow_steps %}
+    <a href="{{ step.url }}{% if selected_sequence %}?sequence={{ selected_sequence.sequence_id }}{% endif %}"
+       class="btn btn-sm {% if step.current %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">{{ step.label }}</a>
+    {% endfor %}
+  </nav>
+</div>
