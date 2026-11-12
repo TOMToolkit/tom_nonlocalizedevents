@@ -1,0 +1,33 @@
+{% extends 'tom_nonlocalizedevents/event_page_base.html' %}
+{% load crispy_forms_tags partials %}
+{% comment %}
+  The Candidates workflow step: the filter form and the htmx table. Sorting, paging and filtering swap
+  div.table-container (the toolkit's table machinery); an alert-tab click re-renders the whole workflow-step-content
+  partial so the credible-region column follows the selected alert. The hidden sequence input keeps the
+  selected alert on every filter request.
+{% endcomment %}
+
+{% block workflow_step_content %}
+{% partialdef workflow-step-content inline %}
+{# hx-headers: the CSRF token for the retire/activate POSTs of the table's buttons, inherited by them #}
+<div class="card" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Candidates{% if selected_sequence %} <small class="text-muted">credible regions of alert {{ selected_sequence.sequence_id }}</small>{% endif %}</span>
+    <span class="text-muted small">{{ record_count }} shown</span>
+  </div>
+  <div class="card-body">
+    <form id="filter-form" class="mb-2" hx-get="{{ request.path }}" hx-target="div.table-container" hx-swap="innerHTML"
+          hx-indicator=".progress">
+      {% if selected_sequence %}<input type="hidden" name="sequence" value="{{ selected_sequence.sequence_id }}">{% endif %}
+      {% crispy filter.form %}
+    </form>
+    <div class="progress"><div class="indeterminate"></div></div>
+    {# reloads after a retire/activate (the action view answers with HX-Trigger: candidatesChanged) #}
+    <div class="table-container" hx-trigger="candidatesChanged from:body" hx-get="{{ request.path }}"
+         hx-include="#filter-form" hx-target="this" hx-swap="innerHTML" hx-indicator=".progress">
+      {% include 'tom_nonlocalizedevents/partials/candidate_table_partial.html' %}
+    </div>
+  </div>
+</div>
+{% endpartialdef %}
+{% endblock %}

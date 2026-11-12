@@ -3,7 +3,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
-from django.db.models import QuerySet
+from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
@@ -30,6 +30,7 @@ from tom_nonlocalizedevents.services.gracedb import ingest_event_from_gracedb
 from tom_nonlocalizedevents.tables import (GammaRayBurstEventTable, GravitationalWaveEventTable,
                                            NeutrinoEventTable, NonLocalizedEventTable,
                                            UnknownEventTable, XRayTransientEventTable)
+from tom_nonlocalizedevents.workflow.registry import workflow_step_columns
 
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,13 @@ EVENT_TYPE_TABS = {
 # reverse map for per-event-type detail template resolution ('all' has no type)
 SLUG_BY_EVENT_TYPE = {entry[0].value: slug for slug, entry in EVENT_TYPE_TABS.items()
                       if entry[0] is not None}
+
+
+def _candidate_count(viable: bool) -> QuerySet:
+    """A per-event count of active or retired candidates, for use as a Subquery annotation."""
+    return (EventCandidate.objects.filter(nonlocalizedevent=OuterRef('pk'), viable=viable)
+            .order_by().values('nonlocalizedevent').annotate(n=Count('pk')).values('n'))
+
 
 # A localization's tiles never change (a new skymap is a new localization), so its credible-region MOCs can be
 # cached for as long as memory allows; a week bounds the server-side cache and a day the browser's.
@@ -94,7 +102,20 @@ class NonLocalizedEventListView(LoginRequiredMixin, HTMXTableViewMixin, FilterVi
         queryset = super().get_queryset().prefetch_related('sequences__localization')
         if self.event_type is not None:  # None: the All tab
             queryset = queryset.filter(event_type=self.event_type)
+        if self.tab_slug == 'gw':
+            # the Candidates workflow step's cell reads these; Subquery rather than Count(filter=), which would meet
+            # the FilterSet's own Subquery annotations through GROUP BY
+            queryset = queryset.annotate(
+                active_candidate_count=Subquery(_candidate_count(viable=True)),
+                retired_candidate_count=Subquery(_candidate_count(viable=False)))
         return queryset
+
+    def get_table_kwargs(self) -> dict:
+        # the workflow-step columns
+        kwargs = super().get_table_kwargs()
+        if self.tab_slug == 'gw':  # only GW is implemented at the moment
+            kwargs['extra_columns'] = workflow_step_columns()
+        return kwargs
 
     def get_template_names(self) -> list[str]:
         # a tab click (HX-Target: event-tabs-region) receives the whole region

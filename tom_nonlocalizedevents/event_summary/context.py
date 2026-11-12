@@ -13,6 +13,7 @@ from tom_nonlocalizedevents.event_summary.header import header_attributes
 from tom_nonlocalizedevents.event_summary.sky_map import sky_map_layers
 from tom_nonlocalizedevents.models import EventSequence, NonLocalizedEvent
 from tom_nonlocalizedevents.services.alerts import parse_alert
+from tom_nonlocalizedevents.workflow.registry import workflow_step_links
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,6 @@ def event_summary_context(request: HttpRequest, event: NonLocalizedEvent,
         'show_sky_map': sky_map,
         'sky_map_data_id': SKY_MAP_DATA_ID,
         'sky_map_layers': sky_map_layers(event, selected_sequence).model_dump(mode='json') if sky_map else None,
-        'workflow_steps': [],
+        'workflow_steps': workflow_step_links(event, request.path),
     }
     return context

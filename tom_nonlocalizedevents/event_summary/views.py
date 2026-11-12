@@ -80,7 +80,10 @@ class EventSummaryMixin:
     def get_template_names(self) -> list[str]:
         if self.is_alert_tab_request():
             return [self.update_template_name]
-        return self.get_page_template_names()
+        if is_history_restore_request(self.request) or not getattr(self.request, 'htmx', False):
+            return self.get_page_template_names()
+        # another htmx request (sorting or filtering a table): the next class decides, with its partial
+        return super().get_template_names()
 
     def workflow_step_content_template_name(self) -> str | None:
         """The ``workflow-step-content`` partial of the page template, or of one of the templates named in

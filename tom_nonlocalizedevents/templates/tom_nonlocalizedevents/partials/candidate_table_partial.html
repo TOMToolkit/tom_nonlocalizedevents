@@ -1,0 +1,15 @@
+{# The candidates table alone: the htmx response to sorting, paging and filtering on the Candidates workflow step. #}
+{% load render_table from django_tables2 %}
+
+{% render_table table %}
+
+{% if not table.data %}
+<div class="alert alert-info mt-3 mb-0">
+  {% if empty_database %}No candidates exist for any event yet.{% else %}No candidates match.{% endif %}
+</div>
+{% endif %}
+
+{% if request.htmx and sky_map_layers %}
+  {# a table reload after retire/activate also refreshes the sky-map markers #}
+  {% include 'tom_nonlocalizedevents/partials/event_sky_map_data.html' with oob=True %}
+{% endif %}
