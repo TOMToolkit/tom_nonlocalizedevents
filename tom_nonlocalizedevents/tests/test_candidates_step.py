@@ -39,7 +39,7 @@ class CandidatesStepTestCase(EventPageTestCase):
 
 
 class TestCandidatesStep(CandidatesStepTestCase):
-    def test_page_shows_active_candidates_with_the_selected_alerts_percentages(self):
+    def test_page_shows_every_candidate_with_the_selected_alerts_percentages(self):
         response = self.client.get(self.candidates_url)
         content = response.content.decode()
 
@@ -49,7 +49,7 @@ class TestCandidatesStep(CandidatesStepTestCase):
         # the sky-map data lists every candidate, so the table rows are told apart by their link markup
         self.assertIn('>AT2026inside</a>', content)
         self.assertIn('>AT2026outside</a>', content)
-        self.assertNotIn('>AT2026retired</a>', content)
+        self.assertIn('>AT2026retired</a> (retired)', content)
         self.assertIn('<td >25%</td>', content)
         self.assertIn('credible regions of alert 3', content)
         self.assertIn('<input type="hidden" name="sequence" value="3">', content)
@@ -61,22 +61,23 @@ class TestCandidatesStep(CandidatesStepTestCase):
         self.assertNotIn('25%', content)
 
     def test_filter_form_is_not_restored_by_the_browser_on_reload(self):
-        # the server renders Active selected and an Active table; a browser that restored the dropdown's last
-        # value on reload would show "All" over a table of active candidates only
+        # the server renders All selected and a table of every candidate; a browser that restored the dropdown's
+        # last value on reload would show "Active" over that table
         content = self.client.get(self.candidates_url).content.decode()
 
-        self.assertIn('<option value="true" selected>Active</option>', content)
+        self.assertIn('<option value="all" selected>All</option>', content)
         self.assertRegex(content, r'<form id="filter-form"[^>]*autocomplete="off"')
 
-    def test_retired_and_all_filters(self):
+    def test_active_and_retired_filters(self):
+        active = self.client.get(self.candidates_url, {'viable': 'true'}).content.decode()
         retired = self.client.get(self.candidates_url, {'viable': 'false'}).content.decode()
-        everything = self.client.get(self.candidates_url, {'viable': 'all'}).content.decode()
 
+        self.assertIn('>AT2026inside</a>', active)
+        self.assertIn('>AT2026outside</a>', active)
+        self.assertNotIn('>AT2026retired</a>', active)
         self.assertIn('>AT2026retired</a> (retired)', retired)
         self.assertIn('host galaxy too distant', retired)
         self.assertNotIn('>AT2026inside</a>', retired)
-        for name in ('AT2026inside', 'AT2026outside', 'AT2026retired'):
-            self.assertIn(f'>{name}</a>', everything)
 
     def test_name_search(self):
         content = self.client.get(self.candidates_url, {'query': 'outside'}).content.decode()

@@ -56,10 +56,12 @@ class CandidatesWorkflowStepView(LoginRequiredMixin, EventSummaryMixin, HTMXTabl
         return queryset.annotate(smallest_percent=Subquery(percent, output_field=IntegerField()))
 
     def get_filterset_kwargs(self, filterset_class: type) -> dict[str, Any]:
-        # Active is the default view; "all" and "false" are explicit choices
+        # the page opens on every candidate, active and retired, so a reader sees the whole record of the event;
+        # the default is written into the data so the Show dropdown renders with All selected (an unbound
+        # ChoiceFilter would filter nothing but show its first choice)
         kwargs = super().get_filterset_kwargs(filterset_class)
         data = kwargs['data'].copy() if kwargs['data'] is not None else {}
-        data.setdefault('viable', 'true')
+        data.setdefault('viable', 'all')
         kwargs['data'] = data
         return kwargs
 

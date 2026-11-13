@@ -27,7 +27,7 @@
     </form>
    {# filters for the candidates #}
     {# autocomplete="off": a browser that restored the Show dropdown on a reload would show the old value over a #}
-    {# table the server rendered with its default (Active) #}
+    {# table the server rendered with its default (All) #}
     <form id="filter-form" class="mb-2" hx-get="{{ request.path }}" hx-target="div.table-container" hx-swap="innerHTML"
           hx-indicator=".progress" autocomplete="off">
       {% if selected_sequence %}<input type="hidden" name="sequence" value="{{ selected_sequence.sequence_id }}">{% endif %}
