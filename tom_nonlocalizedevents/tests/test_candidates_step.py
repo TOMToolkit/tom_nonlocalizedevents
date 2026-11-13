@@ -60,6 +60,14 @@ class TestCandidatesStep(CandidatesStepTestCase):
         self.assertIn('<td >90%</td>', content)
         self.assertNotIn('25%', content)
 
+    def test_filter_form_is_not_restored_by_the_browser_on_reload(self):
+        # the server renders Active selected and an Active table; a browser that restored the dropdown's last
+        # value on reload would show "All" over a table of active candidates only
+        content = self.client.get(self.candidates_url).content.decode()
+
+        self.assertIn('<option value="true" selected>Active</option>', content)
+        self.assertRegex(content, r'<form id="filter-form"[^>]*autocomplete="off"')
+
     def test_retired_and_all_filters(self):
         retired = self.client.get(self.candidates_url, {'viable': 'false'}).content.decode()
         everything = self.client.get(self.candidates_url, {'viable': 'all'}).content.decode()
