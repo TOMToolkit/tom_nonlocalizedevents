@@ -2,6 +2,7 @@ import logging
 
 from rest_framework import serializers
 
+from tom_nonlocalizedevents.services.candidates import add_candidate
 from tom_nonlocalizedevents.models import (CredibleRegion, EventCandidate, EventLocalization,
                                            EventSequence, NonLocalizedEvent, ExternalCoincidence)
 from tom_targets.models import Target
@@ -43,25 +44,25 @@ class EventCandidateSerializer(serializers.ModelSerializer):
                     f"PATCH update must contain at least one of {', '.join(self.UPDATE_KEYS)} to update"
                 )
         else:
-            if 'target' not in data and 'target_fields' not in data:
+            # make sure we have a target
+            if data.get('target') is None and 'target_fields' not in data:
                 raise serializers.ValidationError(
                     "Must specify either target or target_fields to create an EventCandidate"
                 )
             if 'target_fields' in data and data['target_fields'].get('name'):
                 try:
-                    target = Target.objects.get(name=data['target_fields']['name'])
-                    data['target'] = target
-                    if EventCandidate.objects.filter(
-                        target=target, nonlocalizedevent=data['nonlocalizedevent']
-                    ).exists():
-                        raise serializers.ValidationError(
-                            f"Event Candidate already exists for target {target.name} "
-                            f"and nonlocalizedevent {data['nonlocalizedevent'].event_id}")
+                    data['target'] = Target.objects.get(name=data['target_fields']['name'])
                     del data['target_fields']
                 except Target.DoesNotExist:
                     target_serializer = TargetSerializer(data=data['target_fields'])
                     target_serializer.is_valid()
                     data['target_fields'] = target_serializer.validated_data
+            # test for duplicate EventCandidates
+            if data.get('target') is not None and EventCandidate.objects.filter(
+                    target=data['target'], nonlocalizedevent=data['nonlocalizedevent']).exists():
+                raise serializers.ValidationError(
+                    f"Event Candidate already exists for target {data['target'].name} "
+                    f"and nonlocalizedevent {data['nonlocalizedevent'].event_id}")
         return super().validate(data)
 
     def update(self, instance, validated_data):
@@ -82,7 +83,11 @@ class EventCandidateSerializer(serializers.ModelSerializer):
                     logger.info(f"Created target {target.id} with name {target.name}")
             validated_data['target'] = target
             del validated_data['target_fields']
-        return super().create(validated_data)
+
+        # use the service to create the candidate
+        candidate, _ = add_candidate(validated_data['nonlocalizedevent'], validated_data['target'],
+                                     priority=validated_data.get('priority', 1))
+        return candidate
 
     def get_credible_regions(self, instance):
         localization_id_to_credible_region_percent = {}

@@ -12,11 +12,11 @@ from tom_common.htmx_table import HTMXTableFilterSet, htmx_attributes_instant
 
 from tom_nonlocalizedevents.models import EventCandidate
 
-VIABILITY_CHOICES = (('true', 'Active'), ('false', 'Retired'), ('all', 'All'))
+VIABILITY_CHOICES = (('all', 'All'), ('true', 'Active'), ('false', 'Retired'))
 
 
 class CandidateFilterSet(HTMXTableFilterSet):
-    """Filters of the candidates table; ``viable`` defaults to Active (the view supplies the default)."""
+    """Filters of the candidates table; ``viable`` defaults to All (the view supplies the default)."""
 
     viable = django_filters.ChoiceFilter(choices=VIABILITY_CHOICES, label='Show', empty_label=None,
                                          method='filter_viable',
